@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package discordiance.v1;
+
+import "discordiance/v1/types.proto";
+
+option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
+
+// PlatformConfigService provides CRUD for platform configurations.
+service PlatformConfigService {
+  // CreatePlatformConfig creates a new platform config for a product.
+  rpc CreatePlatformConfig(CreatePlatformConfigRequest) returns (CreatePlatformConfigResponse) {}
+  // UpdatePlatformConfig updates an existing platform config.
+  rpc UpdatePlatformConfig(UpdatePlatformConfigRequest) returns (UpdatePlatformConfigResponse) {}
+  // DeletePlatformConfig deletes a platform config.
+  rpc DeletePlatformConfig(DeletePlatformConfigRequest) returns (DeletePlatformConfigResponse) {}
+  // ListAvailablePlatforms returns registered platform type names.
+  rpc ListAvailablePlatforms(ListAvailablePlatformsRequest) returns (ListAvailablePlatformsResponse) {}
+}
+
+// CreatePlatformConfigRequest creates a platform config.
+message CreatePlatformConfigRequest {
+  uint64 product_id = 1;
+  string type = 2;
+  bool enabled = 3;
+  map<string, string> settings = 4;
+}
+
+// CreatePlatformConfigResponse contains the created platform config.
+message CreatePlatformConfigResponse {
+  PlatformConfig platform_config = 1;
+}
+
+// UpdatePlatformConfigRequest updates a platform config.
+message UpdatePlatformConfigRequest {
+  uint64 id = 1;
+  string type = 2;
+  bool enabled = 3;
+  map<string, string> settings = 4;
+}
+
+// UpdatePlatformConfigResponse contains the updated platform config.
+message UpdatePlatformConfigResponse {
+  PlatformConfig platform_config = 1;
+}
+
+// DeletePlatformConfigRequest deletes a platform config by ID.
+message DeletePlatformConfigRequest {
+  uint64 id = 1;
+}
+
+// DeletePlatformConfigResponse is empty.
+message DeletePlatformConfigResponse {}
+
+// ListAvailablePlatformsRequest is empty.
+message ListAvailablePlatformsRequest {}
+
+// ListAvailablePlatformsResponse contains available platform type names.
+message ListAvailablePlatformsResponse {
+  repeated string platforms = 1;
+}

@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package discordiance.v1;
+
+import "discordiance/v1/types.proto";
+
+option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
+
+// PipelineService provides pipeline control operations.
+service PipelineService {
+  // StartPipeline starts the pipeline for a product.
+  rpc StartPipeline(StartPipelineRequest) returns (StartPipelineResponse) {}
+  // StopPipeline stops the pipeline for a product.
+  rpc StopPipeline(StopPipelineRequest) returns (StopPipelineResponse) {}
+  // RestartPipeline restarts the pipeline for a product.
+  rpc RestartPipeline(RestartPipelineRequest) returns (RestartPipelineResponse) {}
+  // GetPipelineStatus returns the status of all pipelines.
+  rpc GetPipelineStatus(GetPipelineStatusRequest) returns (GetPipelineStatusResponse) {}
+  // BackfillPipeline triggers a message backfill for a product's pipeline.
+  rpc BackfillPipeline(BackfillPipelineRequest) returns (BackfillPipelineResponse) {}
+}
+
+message StartPipelineRequest {
+  uint64 product_id = 1;
+}
+
+message StartPipelineResponse {}
+
+message StopPipelineRequest {
+  uint64 product_id = 1;
+}
+
+message StopPipelineResponse {}
+
+// RestartPipelineRequest restarts a product's pipeline.
+message RestartPipelineRequest {
+  uint64 product_id = 1;
+}
+
+// RestartPipelineResponse is empty on success.
+message RestartPipelineResponse {}
+
+// GetPipelineStatusRequest is empty.
+message GetPipelineStatusRequest {}
+
+// GetPipelineStatusResponse contains pipeline statuses.
+message GetPipelineStatusResponse {
+  repeated ProductStatus statuses = 1;
+}
+
+// BackfillPipelineRequest triggers backfill for a product.
+message BackfillPipelineRequest {
+  uint64 product_id = 1;
+}
+
+// BackfillPipelineResponse is empty on success.
+message BackfillPipelineResponse {}

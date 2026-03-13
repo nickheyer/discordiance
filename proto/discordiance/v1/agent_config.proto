@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package discordiance.v1;
+
+import "discordiance/v1/types.proto";
+
+option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
+
+// AgentConfigService provides upsert for agent configurations.
+service AgentConfigService {
+  // UpsertAgentConfig creates or updates the agent config for a product.
+  rpc UpsertAgentConfig(UpsertAgentConfigRequest) returns (UpsertAgentConfigResponse) {}
+}
+
+// UpsertAgentConfigRequest creates or updates an agent config.
+message UpsertAgentConfigRequest {
+  uint64 product_id = 1;
+  string base_url = 2;
+  string api_key = 3;
+  string org_id = 8;
+  string model = 4;
+  string system_prompt = 5;
+  int32 batch_size = 6;
+  int32 batch_timeout = 7;
+}
+
+// UpsertAgentConfigResponse contains the upserted agent config.
+message UpsertAgentConfigResponse {
+  AgentConfig agent_config = 1;
+}

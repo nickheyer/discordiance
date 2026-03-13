@@ -3,10 +3,11 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+.svelte-kit/
+build/
+src/lib/proto/**/*
+
 # User-specific files
-dev/
-data/
-pkg/proto/
 *.rsuser
 *.suo
 *.user

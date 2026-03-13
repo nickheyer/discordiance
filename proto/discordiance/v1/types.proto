@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package discordiance.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
+
+// Product represents a monitored product with its associated configurations.
+message Product {
+  uint64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  string name = 4;
+  bool enabled = 5;
+  repeated PlatformConfig platform_configs = 6;
+  AgentConfig agent_config = 7;
+  repeated ReporterConfig reporter_configs = 8;
+}
+
+// PlatformConfig represents a platform source configuration for a product.
+message PlatformConfig {
+  uint64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  uint64 product_id = 4;
+  string type = 5;
+  bool enabled = 6;
+  map<string, string> settings = 7;
+}
+
+// AgentConfig represents an LLM agent configuration for a product.
+message AgentConfig {
+  uint64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  uint64 product_id = 4;
+  string base_url = 5;
+  string api_key = 6;
+  string org_id = 11;
+  string model = 7;
+  string system_prompt = 8;
+  int32 batch_size = 9;
+  int32 batch_timeout = 10;
+}
+
+// ReporterConfig represents a reporter destination configuration for a product.
+message ReporterConfig {
+  uint64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  uint64 product_id = 4;
+  string type = 5;
+  bool enabled = 6;
+  map<string, string> settings = 7;
+}
+
+// Issue represents a detected issue from community messages.
+message Issue {
+  uint64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  uint64 product_id = 4;
+  string title = 5;
+  string description = 6;
+  string severity = 7;
+  string category = 8;
+  string fingerprint = 9;
+  string status = 10;
+  string source_msg_ids = 11;
+  string product_name = 12;
+  repeated Report reports = 13;
+}
+
+// Report represents an external ticket filed by a reporter.
+message Report {
+  uint64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  uint64 issue_id = 4;
+  string reporter_type = 5;
+  string external_id = 6;
+  string external_url = 7;
+  string status = 8;
+}
+
+// Message represents an incoming platform message.
+message Message {
+  uint64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  uint64 product_id = 3;
+  string platform_type = 4;
+  string external_id = 5;
+  string channel_id = 6;
+  string author_id = 7;
+  string author_name = 8;
+  string content = 9;
+  google.protobuf.Timestamp timestamp = 10;
+  bool processed = 11;
+}
+
+// ProductStatus represents the runtime state of a product pipeline.
+message ProductStatus {
+  uint64 product_id = 1;
+  string product_name = 2;
+  bool running = 3;
+  bool healthy = 4;
+}

@@ -1,0 +1,21 @@
+services:
+  discordiance:
+    build: .
+    ports:
+      - "8067:8067"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - data:/app/data
+    environment:
+      - DISCORD_BOT_TOKEN
+      - DISCORD_CHANNEL_IDS
+      - OPENAI_API_KEY
+      - OPENAI_BASE_URL
+      - OPENAI_MODEL
+      - GITHUB_TOKEN
+      - GITHUB_REPO
+      - DATABASE_DSN=/app/data/discordiance.db
+    restart: unless-stopped
+
+volumes:
+  data:
