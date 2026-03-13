@@ -6,35 +6,52 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
 
-// Product represents a monitored product with its associated configurations.
+// Product represents a monitored product.
 message Product {
   uint64 id = 1;
   google.protobuf.Timestamp created_at = 2;
   google.protobuf.Timestamp updated_at = 3;
   string name = 4;
   bool enabled = 5;
-  repeated PlatformConfig platform_configs = 6;
-  AgentConfig agent_config = 7;
-  repeated ReporterConfig reporter_configs = 8;
+  string description = 9;
+  string repo_url = 10;
+  bool has_github_token = 11;
 }
 
-// PlatformConfig represents a platform source configuration for a product.
-message PlatformConfig {
+// DiscordPlatformSettings contains the settings for a Discord platform source.
+message DiscordPlatformSettings {
+  string token = 1;
+  string channel_ids = 2;
+}
+
+// GitHubReporterSettings contains the settings for a GitHub Issues reporter.
+message GitHubReporterSettings {
+  string token = 1;
+  string repo = 2;
+  string labels = 3;
+  bool auto_file = 4;
+}
+
+// Platform represents a standalone platform source.
+message Platform {
   uint64 id = 1;
   google.protobuf.Timestamp created_at = 2;
   google.protobuf.Timestamp updated_at = 3;
-  uint64 product_id = 4;
+  string name = 4;
   string type = 5;
   bool enabled = 6;
-  map<string, string> settings = 7;
+  // Typed settings for this platform type.
+  oneof settings {
+    DiscordPlatformSettings discord_settings = 7;
+  }
 }
 
-// AgentConfig represents an LLM agent configuration for a product.
-message AgentConfig {
+// Agent represents a standalone LLM agent.
+message Agent {
   uint64 id = 1;
   google.protobuf.Timestamp created_at = 2;
   google.protobuf.Timestamp updated_at = 3;
-  uint64 product_id = 4;
+  string name = 4;
   string base_url = 5;
   string api_key = 6;
   string org_id = 11;
@@ -44,19 +61,39 @@ message AgentConfig {
   int32 batch_timeout = 10;
 }
 
-// ReporterConfig represents a reporter destination configuration for a product.
-message ReporterConfig {
+// Reporter represents a standalone reporter destination.
+message Reporter {
   uint64 id = 1;
   google.protobuf.Timestamp created_at = 2;
   google.protobuf.Timestamp updated_at = 3;
-  uint64 product_id = 4;
+  string name = 4;
   string type = 5;
   bool enabled = 6;
-  map<string, string> settings = 7;
+  // Typed settings for this reporter type.
+  oneof settings {
+    GitHubReporterSettings github_settings = 7;
+  }
 }
 
-// Issue represents a detected issue from community messages.
-message Issue {
+// Pipeline composes a Product + Platform + Agent + Reporters.
+message Pipeline {
+  uint64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  string name = 4;
+  bool enabled = 5;
+  uint64 product_id = 6;
+  uint64 platform_id = 7;
+  uint64 agent_id = 8;
+  repeated uint64 reporter_ids = 9;
+  Product product = 10;
+  Platform platform = 11;
+  Agent agent = 12;
+  repeated Reporter reporters = 13;
+}
+
+// Insight represents a detected insight (bug, feature, sentiment, etc.) from community messages.
+message Insight {
   uint64 id = 1;
   google.protobuf.Timestamp created_at = 2;
   google.protobuf.Timestamp updated_at = 3;
@@ -77,7 +114,7 @@ message Report {
   uint64 id = 1;
   google.protobuf.Timestamp created_at = 2;
   google.protobuf.Timestamp updated_at = 3;
-  uint64 issue_id = 4;
+  uint64 insight_id = 4;
   string reporter_type = 5;
   string external_id = 6;
   string external_url = 7;
@@ -99,10 +136,11 @@ message Message {
   bool processed = 11;
 }
 
-// ProductStatus represents the runtime state of a product pipeline.
-message ProductStatus {
-  uint64 product_id = 1;
-  string product_name = 2;
-  bool running = 3;
-  bool healthy = 4;
+// PipelineStatus represents the runtime state of a pipeline.
+message PipelineStatus {
+  uint64 pipeline_id = 1;
+  string pipeline_name = 2;
+  string product_name = 3;
+  bool running = 4;
+  bool healthy = 5;
 }

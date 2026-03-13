@@ -4,12 +4,16 @@ import (
 	"time"
 )
 
-type ReporterConfig struct {
+type Reporter struct {
 	ID        uint      `gorm:"primarykey" json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	ProductID uint      `gorm:"not null;index" json:"product_id"`
-	Type      string    `gorm:"not null" json:"type"`
+	Name      string    `gorm:"not null" json:"name"`
+	Type      string    `gorm:"not null" json:"type" mapstructure:"type"`
 	Enabled   bool      `gorm:"default:true" json:"enabled"`
-	Settings  JSONMap   `gorm:"type:text" json:"settings"`
+	// GitHub fields
+	Token    string `json:"token,omitempty" mapstructure:"token"`
+	Repo     string `json:"repo,omitempty" mapstructure:"repo"`
+	Labels   string `json:"labels,omitempty" mapstructure:"labels"`
+	AutoFile bool   `gorm:"default:true" json:"auto_file" mapstructure:"auto_file"`
 }

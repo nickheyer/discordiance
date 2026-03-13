@@ -6,10 +6,14 @@ import "discordiance/v1/types.proto";
 
 option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
 
-// MessageService provides operations for viewing messages.
+// MessageService provides operations for viewing and managing messages.
 service MessageService {
   // ListMessages returns recent messages.
   rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse) {}
+  // DeleteMessages deletes messages matching the given criteria.
+  rpc DeleteMessages(DeleteMessagesRequest) returns (DeleteMessagesResponse) {}
+  // GetMessageStats returns message counts.
+  rpc GetMessageStats(GetMessageStatsRequest) returns (GetMessageStatsResponse) {}
 }
 
 // ListMessagesRequest lists messages with optional filters.
@@ -17,10 +21,35 @@ message ListMessagesRequest {
   uint64 product_id = 1;
   int32 page_size = 2;
   int32 page = 3;
+  string processed_filter = 4; // "all", "processed", "unprocessed"
 }
 
 // ListMessagesResponse contains a list of messages.
 message ListMessagesResponse {
   repeated Message messages = 1;
   int32 total_count = 2;
+}
+
+// DeleteMessagesRequest deletes messages by criteria.
+message DeleteMessagesRequest {
+  uint64 product_id = 1;
+  string processed_filter = 2; // "all", "processed", "unprocessed"
+  repeated uint64 ids = 3;
+}
+
+// DeleteMessagesResponse contains the number of deleted messages.
+message DeleteMessagesResponse {
+  int32 deleted_count = 1;
+}
+
+// GetMessageStatsRequest requests message statistics.
+message GetMessageStatsRequest {
+  uint64 product_id = 1;
+}
+
+// GetMessageStatsResponse contains message counts.
+message GetMessageStatsResponse {
+  int32 total = 1;
+  int32 processed = 2;
+  int32 unprocessed = 3;
 }

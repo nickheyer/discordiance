@@ -1,208 +1,235 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { rpcClient } from '$lib/api/rpc-client';
-	import type { Product, ProductStatus } from '$lib/proto/discordiance/v1/types_pb';
 	import { toast } from 'svelte-sonner';
-	import PlatformConfigSection from '$lib/components/platform-config-section.svelte';
-	import AgentConfigSection from '$lib/components/agent-config-section.svelte';
-	import ReporterConfigSection from '$lib/components/reporter-config-section.svelte';
-	import Badge from '$lib/components/badge.svelte';
+	import { formatDate, formatBytes, severityColor, statusColor } from '$lib/utils';
+	import type { Product, Insight } from '$lib/proto/discordiance/v1/types_pb';
+	import type { ProductFile } from '$lib/proto/discordiance/v1/file_pb';
 	import {
-		Save,
+		ChevronRight,
 		Trash2,
-		RefreshCw,
-		ChevronLeft,
-		Download,
-		Play,
-		Square
+		Upload,
+		File,
+		ExternalLink,
+		KeyRound,
+		Lightbulb,
+		GitBranch
 	} from '@lucide/svelte';
 
-	const productId = $derived(BigInt(page.params.id || ''));
 	let product = $state<Product | null>(null);
-	let pipelineStatus = $state<ProductStatus | null>(null);
-	let name = $state('');
-	let enabled = $state(true);
-	let saving = $state(false);
-	let starting = $state(false);
-	let stopping = $state(false);
-	let restarting = $state(false);
-	let backfilling = $state(false);
+	let files = $state<ProductFile[]>([]);
+	let totalFileSize = $state<bigint>(BigInt(0));
+	let insights = $state<Insight[]>([]);
+	let loading = $state(true);
+	let uploading = $state(false);
+	let confirmDelete = $state(false);
 
-	const isRunning = $derived(pipelineStatus?.running ?? false);
+	const productId = $derived(BigInt(page.params.id!));
 
-	onMount(() => {
-		loadProduct();
-		loadStatus();
-	});
-
-	async function loadProduct() {
-		const resp = await rpcClient.product.getProduct({ id: productId });
-		product = resp.product!;
-		name = product.name;
-		enabled = product.enabled;
-	}
-
-	async function loadStatus() {
-		const resp = await rpcClient.pipeline.getPipelineStatus({});
-		pipelineStatus = resp.statuses.find(s => s.productId === productId) ?? null;
-	}
-
-	async function saveProduct() {
-		saving = true;
+	async function load() {
+		loading = true;
 		try {
-			await rpcClient.product.updateProduct({ id: productId, name, enabled });
-			toast.success('Product updated');
-			await loadProduct();
+			const [prodRes, fileRes, insightRes] = await Promise.all([
+				rpcClient.product.getProduct({ id: productId }),
+				rpcClient.productFile.listProductFiles({ productId }),
+				rpcClient.insight.listInsights({ productId, pageSize: 10, page: 1 })
+			]);
+			product = prodRes.product ?? null;
+			files = fileRes.files;
+			totalFileSize = fileRes.totalSize;
+			insights = insightRes.insights;
+		} catch {
+			// handled
 		} finally {
-			saving = false;
+			loading = false;
+		}
+	}
+
+	$effect(() => { load(); });
+
+	async function handleFileUpload(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		uploading = true;
+		try {
+			const buffer = await file.arrayBuffer();
+			await rpcClient.productFile.uploadProductFile({
+				productId,
+				filename: file.name,
+				mimeType: file.type || 'application/octet-stream',
+				content: new Uint8Array(buffer)
+			});
+			toast.success(`Uploaded ${file.name}`);
+			load();
+		} catch {
+			// handled
+		} finally {
+			uploading = false;
+			input.value = '';
+		}
+	}
+
+	async function deleteFile(fileId: bigint, filename: string) {
+		try {
+			await rpcClient.productFile.deleteProductFile({ id: fileId });
+			toast.success(`Deleted ${filename}`);
+			load();
+		} catch {
+			// handled
 		}
 	}
 
 	async function deleteProduct() {
-		if (!confirm(`Delete "${product?.name}" and all its configurations? This cannot be undone.`)) return;
 		await rpcClient.product.deleteProduct({ id: productId });
 		toast.success('Product deleted');
 		goto('/products');
 	}
-
-	async function startPipeline() {
-		starting = true;
-		try {
-			await rpcClient.pipeline.startPipeline({ productId });
-			toast.success('Pipeline started');
-			await loadStatus();
-		} catch {
-			// error already shown by interceptor
-		} finally {
-			starting = false;
-		}
-	}
-
-	async function stopPipeline() {
-		stopping = true;
-		try {
-			await rpcClient.pipeline.stopPipeline({ productId });
-			toast.success('Pipeline stopped');
-			await loadStatus();
-		} catch {
-			// error already shown by interceptor
-		} finally {
-			stopping = false;
-		}
-	}
-
-	async function restartPipeline() {
-		restarting = true;
-		try {
-			await rpcClient.pipeline.restartPipeline({ productId });
-			toast.success('Pipeline restarted');
-			await loadStatus();
-		} catch {
-			// error already shown by interceptor
-		} finally {
-			restarting = false;
-		}
-	}
-
-	async function backfillMessages() {
-		backfilling = true;
-		try {
-			await rpcClient.pipeline.backfillPipeline({ productId });
-			toast.success('Backfill started');
-		} catch {
-			// error already shown by interceptor
-		} finally {
-			backfilling = false;
-		}
-	}
 </script>
 
-{#if !product}
-	<div class="flex items-center justify-center py-20">
-		<div class="h-5 w-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+<div class="breadcrumb">
+	<a href="/products">Products</a>
+	<ChevronRight class="w-3 h-3 separator" />
+	<span class="current">{product?.name || '...'}</span>
+</div>
+
+{#if loading}
+	<div class="space-y-4">
+		<div class="skeleton h-8 w-64"></div>
+		<div class="skeleton h-40 w-full"></div>
 	</div>
-{:else}
-	<div class="space-y-8">
-		<!-- Breadcrumb + actions -->
+{:else if product}
+	<div class="flex items-start justify-between mb-6">
 		<div>
-			<a href="/products" class="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-3">
-				<ChevronLeft class="h-3 w-3" /> Products
-			</a>
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-3">
-					<h1 class="text-xl font-semibold tracking-tight">{product.name}</h1>
-					<Badge value={product.enabled ? 'enabled' : 'disabled'} type="status" />
-					{#if isRunning}
-						<Badge value="running" type="status" />
+			<h1 class="page-title">{product.name}</h1>
+			<div class="flex items-center gap-3 mt-2">
+				{#if product.enabled}
+					<span class="badge badge-success">Enabled</span>
+				{:else}
+					<span class="badge badge-muted">Disabled</span>
+				{/if}
+				{#if product.hasGithubToken}
+					<span class="badge badge-info"><KeyRound class="w-3 h-3" /> GitHub Connected</span>
+				{/if}
+			</div>
+		</div>
+		<button class="btn-outline-destructive btn-sm" onclick={() => (confirmDelete = true)}>
+			<Trash2 class="w-3 h-3" /> Delete
+		</button>
+	</div>
+
+	<div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
+		<div class="lg:col-span-2 card">
+			<div class="card-header">
+				<h3 class="card-title">Details</h3>
+			</div>
+			<div class="card-body space-y-2">
+				<div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">{product.description || '—'}</span></div>
+				<div class="detail-row">
+					<span class="detail-label">Repository</span>
+					{#if product.repoUrl}
+						<a href={product.repoUrl} target="_blank" rel="noopener" class="detail-value text-primary flex items-center gap-1 hover:underline">
+							{product.repoUrl} <ExternalLink class="w-3 h-3" />
+						</a>
 					{:else}
-						<Badge value="stopped" type="status" />
+						<span class="detail-value">—</span>
 					{/if}
 				</div>
-				<div class="flex items-center gap-2">
-					{#if isRunning}
-						<button class="btn-secondary btn-sm" onclick={backfillMessages} disabled={backfilling}>
-							<Download class="h-3.5 w-3.5" />
-							{backfilling ? 'Starting...' : 'Backfill'}
-						</button>
-						<button class="btn-secondary btn-sm" onclick={restartPipeline} disabled={restarting}>
-							<RefreshCw class="h-3.5 w-3.5 {restarting ? 'animate-spin' : ''}" />
-							{restarting ? 'Restarting...' : 'Restart'}
-						</button>
-						<button class="btn-secondary btn-sm" onclick={stopPipeline} disabled={stopping}>
-							<Square class="h-3.5 w-3.5" />
-							{stopping ? 'Stopping...' : 'Stop'}
-						</button>
-					{:else}
-						<button class="btn-primary btn-sm" onclick={startPipeline} disabled={starting}>
-							<Play class="h-3.5 w-3.5" />
-							{starting ? 'Starting...' : 'Start Pipeline'}
-						</button>
-					{/if}
-					<button
-						class="btn-ghost btn-sm text-destructive hover:bg-destructive/10"
-						onclick={deleteProduct}
-					>
-						<Trash2 class="h-3.5 w-3.5" />
-					</button>
-				</div>
+				<div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">{formatDate(product.createdAt)}</span></div>
+				<div class="detail-row"><span class="detail-label">Updated</span><span class="detail-value">{formatDate(product.updatedAt)}</span></div>
 			</div>
 		</div>
 
-		<!-- Product settings -->
-		<section class="card">
+		<div class="card">
 			<div class="card-header">
-				<h2 class="text-sm font-semibold">General</h2>
+				<h3 class="card-title">Context Files</h3>
+				<label class="btn-ghost btn-sm cursor-pointer">
+					<Upload class="w-3 h-3" />
+					{uploading ? 'Uploading...' : 'Upload'}
+					<input type="file" class="hidden" onchange={handleFileUpload} disabled={uploading} />
+				</label>
 			</div>
-			<div class="card-body space-y-4">
-				<div class="grid gap-4 sm:grid-cols-2">
-					<div>
-						<label for="prod-name" class="label">Name</label>
-						<input id="prod-name" class="input" bind:value={name} />
+			<div class="card-body">
+				{#if files.length === 0}
+					<p class="text-sm text-muted-foreground text-center py-4">No files uploaded</p>
+				{:else}
+					<div class="space-y-1">
+						{#each files as file}
+							<div class="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50 group">
+								<div class="flex items-center gap-2 min-w-0">
+									<File class="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+									<span class="text-sm truncate">{file.filename}</span>
+									<span class="text-xs text-muted-foreground">{formatBytes(file.size)}</span>
+								</div>
+								<button class="btn-icon-sm text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onclick={() => deleteFile(file.id, file.filename)}>
+									<Trash2 class="w-3 h-3" />
+								</button>
+							</div>
+						{/each}
 					</div>
-					<div>
-						<label class="label">Status</label>
-						<label class="flex items-center gap-2 mt-2 cursor-pointer">
-							<input type="checkbox" bind:checked={enabled} class="rounded accent-primary" />
-							<span class="text-sm">{enabled ? 'Enabled — pipeline can run' : 'Disabled — pipeline cannot start'}</span>
-						</label>
+					<div class="mt-3 pt-2 border-t border-border text-xs text-muted-foreground">
+						{files.length} files, {formatBytes(totalFileSize)} total
 					</div>
+				{/if}
+			</div>
+		</div>
+	</div>
+
+	<div class="card">
+		<div class="card-header">
+			<h3 class="card-title flex items-center gap-2"><Lightbulb class="w-4 h-4 text-muted-foreground" /> Recent Insights</h3>
+		</div>
+		{#if insights.length === 0}
+			<div class="empty-state py-10">
+				<p class="empty-state-title">No insights yet</p>
+				<p class="empty-state-text">Insights for this product will appear here once pipelines process messages</p>
+			</div>
+		{:else}
+			<div class="overflow-x-auto">
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Title</th>
+							<th>Severity</th>
+							<th>Category</th>
+							<th>Status</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each insights as insight}
+							<tr class="row-link" onclick={() => { window.location.href = `/insights/${insight.id}` }}>
+								<td class="font-medium">{insight.title}</td>
+								<td><span class="badge {severityColor(insight.severity)}">{insight.severity}</span></td>
+								<td class="text-muted-foreground">{insight.category}</td>
+								<td><span class="badge {statusColor(insight.status)}">{insight.status}</span></td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
+	</div>
+
+	{#if confirmDelete}
+		<div class="modal-backdrop" onclick={() => (confirmDelete = false)} role="presentation">
+			<div class="confirm-dialog" onclick={(e) => e.stopPropagation()} role="dialog">
+				<div class="modal-header"><h3 class="modal-title">Delete Product</h3></div>
+				<div class="modal-body">
+					<p class="text-sm">Are you sure you want to delete <strong>{product.name}</strong>? All associated data will be removed.</p>
 				</div>
-				<button class="btn-primary btn-sm" onclick={saveProduct} disabled={saving}>
-					<Save class="h-3.5 w-3.5" />
-					{saving ? 'Saving...' : 'Save Changes'}
-				</button>
+				<div class="modal-footer">
+					<button class="btn-secondary" onclick={() => (confirmDelete = false)}>Cancel</button>
+					<button class="btn-destructive" onclick={deleteProduct}>Delete</button>
+				</div>
 			</div>
-		</section>
-
-		<!-- Platform Configs -->
-		<PlatformConfigSection {productId} platformConfigs={product.platformConfigs} onchange={loadProduct} />
-
-		<!-- Agent Config -->
-		<AgentConfigSection {productId} agentConfig={product.agentConfig} onchange={loadProduct} />
-
-		<!-- Reporter Configs -->
-		<ReporterConfigSection {productId} reporterConfigs={product.reporterConfigs} onchange={loadProduct} />
+		</div>
+	{/if}
+{:else}
+	<div class="card">
+		<div class="empty-state">
+			<p class="empty-state-title">Product not found</p>
+			<a href="/products" class="btn-primary btn-sm">Back to Products</a>
+		</div>
 	</div>
 {/if}

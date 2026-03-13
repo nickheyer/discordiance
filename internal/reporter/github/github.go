@@ -29,55 +29,53 @@ type GitHub struct {
 
 func (g *GitHub) Type() string { return "github" }
 
-func (g *GitHub) Init(ctx context.Context, settings models.JSONMap) error {
+func (g *GitHub) Init(ctx context.Context, cfg models.Reporter) error {
 	slog.Info("github: initializing reporter")
 
-	token := settings["token"]
-	if token == "" {
+	if cfg.Token == "" {
 		return fmt.Errorf("github: token is required")
 	}
-	slog.Info("github: token present", "length", len(token))
+	slog.Info("github: token present", "length", len(cfg.Token))
 
-	repoFull := settings["repo"]
-	if repoFull == "" {
+	if cfg.Repo == "" {
 		return fmt.Errorf("github: repo is required (format: owner/repo)")
 	}
 
-	parts := strings.SplitN(repoFull, "/", 2)
+	parts := strings.SplitN(cfg.Repo, "/", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("github: repo must be in format owner/repo")
 	}
 	g.owner = parts[0]
 	g.repo = parts[1]
 
-	if labels, ok := settings["labels"]; ok && labels != "" {
-		g.labels = strings.Split(labels, ",")
+	if cfg.Labels != "" {
+		g.labels = strings.Split(cfg.Labels, ",")
 		for i := range g.labels {
 			g.labels[i] = strings.TrimSpace(g.labels[i])
 		}
 		slog.Info("github: labels configured", "labels", g.labels)
 	}
 
-	g.client = gh.NewClient(nil).WithAuthToken(token)
+	g.client = gh.NewClient(nil).WithAuthToken(cfg.Token)
 
 	g.mu.Lock()
 	g.healthy = true
 	g.mu.Unlock()
 
-	slog.Info("github: reporter initialized", "repo", repoFull, "owner", g.owner, "repo_name", g.repo)
+	slog.Info("github: reporter initialized", "repo", cfg.Repo, "owner", g.owner, "repo_name", g.repo)
 	return nil
 }
 
-func (g *GitHub) FileReport(ctx context.Context, issue models.Issue) (*models.Report, error) {
-	slog.Info("github: filing issue", "title", issue.Title, "severity", issue.Severity, "category", issue.Category)
+func (g *GitHub) FileReport(ctx context.Context, insight models.Insight) (*models.Report, error) {
+	slog.Info("github: filing insight", "title", insight.Title, "severity", insight.Severity, "category", insight.Category)
 
-	body := issue.Description
-	if issue.Severity != "" {
-		body = fmt.Sprintf("**Severity:** %s\n**Category:** %s\n\n%s", issue.Severity, issue.Category, body)
+	body := insight.Description
+	if insight.Severity != "" {
+		body = fmt.Sprintf("**Severity:** %s\n**Category:** %s\n\n%s", insight.Severity, insight.Category, body)
 	}
 
 	req := &gh.IssueRequest{
-		Title:  gh.Ptr(issue.Title),
+		Title:  gh.Ptr(insight.Title),
 		Body:   gh.Ptr(body),
 		Labels: &g.labels,
 	}
@@ -90,7 +88,7 @@ func (g *GitHub) FileReport(ctx context.Context, issue models.Issue) (*models.Re
 	}
 
 	report := &models.Report{
-		IssueID:      issue.ID,
+		InsightID:    insight.ID,
 		ReporterType: "github",
 		ExternalID:   fmt.Sprintf("%d", ghIssue.GetNumber()),
 		ExternalURL:  ghIssue.GetHTMLURL(),
@@ -101,16 +99,15 @@ func (g *GitHub) FileReport(ctx context.Context, issue models.Issue) (*models.Re
 	return report, nil
 }
 
-func (g *GitHub) UpdateReport(ctx context.Context, externalID string, issue models.Issue) error {
+func (g *GitHub) UpdateReport(ctx context.Context, externalID string, insight models.Insight) error {
 	slog.Debug("github: UpdateReport not implemented", "external_id", externalID)
 	return nil
 }
 
-func (g *GitHub) FindDuplicate(ctx context.Context, issue models.Issue) (string, error) {
-	slog.Info("github: searching for duplicate", "title", issue.Title, "owner", g.owner, "repo", g.repo)
+func (g *GitHub) FindDuplicate(ctx context.Context, insight models.Insight) (string, error) {
+	slog.Info("github: searching for duplicate", "title", insight.Title, "owner", g.owner, "repo", g.repo)
 
-	// Basic title-match dedup: search for open issues with similar titles
-	query := fmt.Sprintf("repo:%s/%s is:open in:title %s", g.owner, g.repo, issue.Title)
+	query := fmt.Sprintf("repo:%s/%s is:open in:title %s", g.owner, g.repo, insight.Title)
 	slog.Debug("github: search query", "query", query)
 
 	result, _, err := g.client.Search.Issues(ctx, query, &gh.SearchOptions{
@@ -124,13 +121,13 @@ func (g *GitHub) FindDuplicate(ctx context.Context, issue models.Issue) (string,
 	slog.Info("github: search results", "total_count", result.GetTotal(), "returned", len(result.Issues))
 
 	for _, existing := range result.Issues {
-		if strings.EqualFold(existing.GetTitle(), issue.Title) {
+		if strings.EqualFold(existing.GetTitle(), insight.Title) {
 			slog.Info("github: exact duplicate found", "number", existing.GetNumber(), "title", existing.GetTitle())
 			return fmt.Sprintf("%d", existing.GetNumber()), nil
 		}
 	}
 
-	slog.Info("github: no duplicate found", "title", issue.Title)
+	slog.Info("github: no duplicate found", "title", insight.Title)
 	return "", nil
 }
 

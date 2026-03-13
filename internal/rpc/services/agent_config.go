@@ -9,65 +9,130 @@ import (
 	"github.com/nickheyer/discordiance/internal/models"
 	v1 "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1"
 	"github.com/nickheyer/discordiance/pkg/proto/discordiance/v1/discordiancev1connect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"
 )
 
-var _ discordiancev1connect.AgentConfigServiceHandler = (*AgentConfigService)(nil)
+var _ discordiancev1connect.AgentServiceHandler = (*AgentService)(nil)
 
-type AgentConfigService struct {
+type AgentService struct {
 	db *gorm.DB
 }
 
-func NewAgentConfigService(db *gorm.DB) *AgentConfigService {
-	return &AgentConfigService{db: db}
+func NewAgentService(db *gorm.DB) *AgentService {
+	return &AgentService{db: db}
 }
 
-func (s *AgentConfigService) UpsertAgentConfig(ctx context.Context, req *connect.Request[v1.UpsertAgentConfigRequest]) (*connect.Response[v1.UpsertAgentConfigResponse], error) {
-	if req.Msg.ProductId == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("product_id is required"))
+func (s *AgentService) ListAgents(ctx context.Context, req *connect.Request[v1.ListAgentsRequest]) (*connect.Response[v1.ListAgentsResponse], error) {
+	var agents []models.Agent
+	if err := s.db.Find(&agents).Error; err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("listing agents: %w", err))
 	}
+	slog.Info("rpc: ListAgents", "count", len(agents))
+	resp := &v1.ListAgentsResponse{
+		Agents: make([]*v1.Agent, len(agents)),
+	}
+	for i, c := range agents {
+		resp.Agents[i] = agentToProto(c)
+	}
+	return connect.NewResponse(resp), nil
+}
 
-	slog.Info("rpc: UpsertAgentConfig", "product_id", req.Msg.ProductId, "model", req.Msg.Model)
-
-	var cfg models.AgentConfig
-	err := s.db.Where("product_id = ?", req.Msg.ProductId).First(&cfg).Error
-
-	if err == gorm.ErrRecordNotFound {
-		slog.Info("rpc: UpsertAgentConfig creating new config", "product_id", req.Msg.ProductId)
-		cfg = models.AgentConfig{
-			ProductID:    uint(req.Msg.ProductId),
-			BaseURL:      req.Msg.BaseUrl,
-			APIKey:       req.Msg.ApiKey,
-			OrgID:        req.Msg.OrgId,
-			Model:        req.Msg.Model,
-			SystemPrompt: req.Msg.SystemPrompt,
-			BatchSize:    int(req.Msg.BatchSize),
-			BatchTimeout: int(req.Msg.BatchTimeout),
+func (s *AgentService) GetAgent(ctx context.Context, req *connect.Request[v1.GetAgentRequest]) (*connect.Response[v1.GetAgentResponse], error) {
+	var cfg models.Agent
+	if err := s.db.First(&cfg, req.Msg.Id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("agent %d not found", req.Msg.Id))
 		}
-		if err := s.db.Create(&cfg).Error; err != nil {
-			slog.Error("rpc: UpsertAgentConfig create failed", "product_id", req.Msg.ProductId, "error", err)
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("creating agent config: %w", err))
-		}
-		slog.Info("rpc: UpsertAgentConfig created", "id", cfg.ID, "product_id", cfg.ProductID)
-	} else if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
-	} else {
-		slog.Info("rpc: UpsertAgentConfig updating existing config", "id", cfg.ID, "product_id", req.Msg.ProductId)
-		cfg.BaseURL = req.Msg.BaseUrl
-		cfg.APIKey = req.Msg.ApiKey
-		cfg.OrgID = req.Msg.OrgId
-		cfg.Model = req.Msg.Model
-		cfg.SystemPrompt = req.Msg.SystemPrompt
-		cfg.BatchSize = int(req.Msg.BatchSize)
-		cfg.BatchTimeout = int(req.Msg.BatchTimeout)
-		if err := s.db.Save(&cfg).Error; err != nil {
-			slog.Error("rpc: UpsertAgentConfig update failed", "id", cfg.ID, "error", err)
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("updating agent config: %w", err))
-		}
-		slog.Info("rpc: UpsertAgentConfig updated", "id", cfg.ID)
+	}
+	return connect.NewResponse(&v1.GetAgentResponse{
+		Agent: agentToProto(cfg),
+	}), nil
+}
+
+func (s *AgentService) CreateAgent(ctx context.Context, req *connect.Request[v1.CreateAgentRequest]) (*connect.Response[v1.CreateAgentResponse], error) {
+	if req.Msg.Name == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("name is required"))
 	}
 
-	return connect.NewResponse(&v1.UpsertAgentConfigResponse{
-		AgentConfig: agentConfigToProto(cfg),
+	slog.Info("rpc: CreateAgent", "name", req.Msg.Name, "model", req.Msg.Model)
+
+	cfg := models.Agent{
+		Name:         req.Msg.Name,
+		BaseURL:      req.Msg.BaseUrl,
+		APIKey:       req.Msg.ApiKey,
+		OrgID:        req.Msg.OrgId,
+		Model:        req.Msg.Model,
+		SystemPrompt: req.Msg.SystemPrompt,
+		BatchSize:    int(req.Msg.BatchSize),
+		BatchTimeout: int(req.Msg.BatchTimeout),
+	}
+	if err := s.db.Create(&cfg).Error; err != nil {
+		slog.Error("rpc: CreateAgent failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("creating agent: %w", err))
+	}
+
+	slog.Info("rpc: CreateAgent success", "id", cfg.ID)
+	return connect.NewResponse(&v1.CreateAgentResponse{
+		Agent: agentToProto(cfg),
 	}), nil
+}
+
+func (s *AgentService) UpdateAgent(ctx context.Context, req *connect.Request[v1.UpdateAgentRequest]) (*connect.Response[v1.UpdateAgentResponse], error) {
+	slog.Info("rpc: UpdateAgent", "id", req.Msg.Id)
+
+	var cfg models.Agent
+	if err := s.db.First(&cfg, req.Msg.Id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("agent %d not found", req.Msg.Id))
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	cfg.Name = req.Msg.Name
+	cfg.BaseURL = req.Msg.BaseUrl
+	cfg.APIKey = req.Msg.ApiKey
+	cfg.OrgID = req.Msg.OrgId
+	cfg.Model = req.Msg.Model
+	cfg.SystemPrompt = req.Msg.SystemPrompt
+	cfg.BatchSize = int(req.Msg.BatchSize)
+	cfg.BatchTimeout = int(req.Msg.BatchTimeout)
+	if err := s.db.Save(&cfg).Error; err != nil {
+		slog.Error("rpc: UpdateAgent failed", "id", req.Msg.Id, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("updating agent: %w", err))
+	}
+
+	slog.Info("rpc: UpdateAgent success", "id", cfg.ID)
+	return connect.NewResponse(&v1.UpdateAgentResponse{
+		Agent: agentToProto(cfg),
+	}), nil
+}
+
+func (s *AgentService) DeleteAgent(ctx context.Context, req *connect.Request[v1.DeleteAgentRequest]) (*connect.Response[v1.DeleteAgentResponse], error) {
+	slog.Info("rpc: DeleteAgent", "id", req.Msg.Id)
+
+	if err := s.db.Delete(&models.Agent{}, req.Msg.Id).Error; err != nil {
+		slog.Error("rpc: DeleteAgent failed", "id", req.Msg.Id, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("deleting agent: %w", err))
+	}
+
+	slog.Info("rpc: DeleteAgent success", "id", req.Msg.Id)
+	return connect.NewResponse(&v1.DeleteAgentResponse{}), nil
+}
+
+func agentToProto(ac models.Agent) *v1.Agent {
+	return &v1.Agent{
+		Id:           uint64(ac.ID),
+		CreatedAt:    timestamppb.New(ac.CreatedAt),
+		UpdatedAt:    timestamppb.New(ac.UpdatedAt),
+		Name:         ac.Name,
+		BaseUrl:      ac.BaseURL,
+		ApiKey:       ac.APIKey,
+		OrgId:        ac.OrgID,
+		Model:        ac.Model,
+		SystemPrompt: ac.SystemPrompt,
+		BatchSize:    int32(ac.BatchSize),
+		BatchTimeout: int32(ac.BatchTimeout),
+	}
 }

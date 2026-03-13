@@ -46,32 +46,36 @@ func (s *Server) setupHandler() {
 	mux.Handle(healthPath, healthHandler)
 
 	productPath, productHandler := discordiancev1connect.NewProductServiceHandler(
-		services.NewProductService(s.db, s.engine), opts...)
+		services.NewProductService(s.db), opts...)
 	mux.Handle(productPath, productHandler)
 
-	platformPath, platformHandler := discordiancev1connect.NewPlatformConfigServiceHandler(
-		services.NewPlatformConfigService(s.db), opts...)
+	platformPath, platformHandler := discordiancev1connect.NewPlatformServiceHandler(
+		services.NewPlatformService(s.db), opts...)
 	mux.Handle(platformPath, platformHandler)
 
-	agentPath, agentHandler := discordiancev1connect.NewAgentConfigServiceHandler(
-		services.NewAgentConfigService(s.db), opts...)
+	agentPath, agentHandler := discordiancev1connect.NewAgentServiceHandler(
+		services.NewAgentService(s.db), opts...)
 	mux.Handle(agentPath, agentHandler)
 
-	reporterPath, reporterHandler := discordiancev1connect.NewReporterConfigServiceHandler(
-		services.NewReporterConfigService(s.db), opts...)
+	reporterPath, reporterHandler := discordiancev1connect.NewReporterServiceHandler(
+		services.NewReporterService(s.db), opts...)
 	mux.Handle(reporterPath, reporterHandler)
 
 	pipelinePath, pipelineHandler := discordiancev1connect.NewPipelineServiceHandler(
-		services.NewPipelineService(s.engine), opts...)
+		services.NewPipelineService(s.db, s.engine), opts...)
 	mux.Handle(pipelinePath, pipelineHandler)
 
-	issuePath, issueHandler := discordiancev1connect.NewIssueServiceHandler(
-		services.NewIssueService(s.db), opts...)
-	mux.Handle(issuePath, issueHandler)
+	insightPath, insightHandler := discordiancev1connect.NewInsightServiceHandler(
+		services.NewInsightService(s.db), opts...)
+	mux.Handle(insightPath, insightHandler)
 
 	messagePath, messageHandler := discordiancev1connect.NewMessageServiceHandler(
 		services.NewMessageService(s.db), opts...)
 	mux.Handle(messagePath, messageHandler)
+
+	productFilePath, productFileHandler := discordiancev1connect.NewProductFileServiceHandler(
+		services.NewProductFileService(s.db), opts...)
+	mux.Handle(productFilePath, productFileHandler)
 
 	// Serve frontend for non-RPC routes
 	s.setupFrontend(mux)

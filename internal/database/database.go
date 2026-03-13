@@ -30,13 +30,16 @@ func Migrate(db *gorm.DB) error {
 
 	tables := []interface{}{
 		&models.Product{},
-		&models.PlatformConfig{},
-		&models.AgentConfig{},
-		&models.ReporterConfig{},
+		&models.Platform{},
+		&models.Agent{},
+		&models.Reporter{},
 		&models.Message{},
-		&models.Issue{},
+		&models.Insight{},
 		&models.Report{},
 		&models.BackfillCursor{},
+		&models.ProductFile{},
+		&models.ProductContextCache{},
+		&models.Pipeline{},
 	}
 
 	slog.Info("database: migrating tables", "count", len(tables))

@@ -40,7 +40,7 @@ func main() {
 		slog.Error("loading config", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("configuration loaded", "products", len(cfg.Products), "port", cfg.Server.Port, "db_path", cfg.Database.Path)
+	slog.Info("configuration loaded", "port", cfg.Server.Port, "db_path", cfg.Database.Path)
 
 	// Open database
 	slog.Info("opening database", "path", cfg.Database.Path)
@@ -65,7 +65,7 @@ func main() {
 	defer cancel()
 
 	slog.Info("setting up engine")
-	if err := eng.Setup(ctx, cfg); err != nil {
+	if err := eng.Setup(ctx); err != nil {
 		slog.Error("setting up engine", "error", err)
 		os.Exit(1)
 	}

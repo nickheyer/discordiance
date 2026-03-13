@@ -14,18 +14,16 @@ type Platform interface {
 	// Type returns the platform identifier (e.g. "discord").
 	Type() string
 
-	// Connect initializes the platform connection with the given settings.
-	Connect(ctx context.Context, settings models.JSONMap) error
+	// Connect initializes the platform connection with the given config.
+	Connect(ctx context.Context, cfg models.Platform) error
 
 	// Start begins listening for real-time messages, delivering them to the handler.
 	Start(ctx context.Context, handler MessageHandler) error
 
 	// Backfill scans historical messages from a channel starting after the given cursor.
-	// Cursor is an opaque platform-specific string (e.g. Discord snowflake). Empty means start from beginning.
 	Backfill(ctx context.Context, channelID string, cursor string, handler MessageHandler) error
 
 	// DiscoverChannels returns the channels to backfill.
-	// Returns configured channels if any, otherwise auto-discovers text channels.
 	DiscoverChannels(ctx context.Context) ([]string, error)
 
 	// Stop gracefully shuts down the platform connection.

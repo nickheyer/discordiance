@@ -5,15 +5,15 @@ import (
 )
 
 type Product struct {
-	ID        uint      `gorm:"primarykey" json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Name      string    `gorm:"uniqueIndex;not null" json:"name"`
-	Enabled   bool      `gorm:"default:true" json:"enabled"`
+	ID          uint      `gorm:"primarykey" json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Name        string    `gorm:"uniqueIndex;not null" json:"name"`
+	Enabled     bool      `gorm:"default:true" json:"enabled"`
+	Description string    `gorm:"type:text" json:"description"`
+	RepoURL     string    `json:"repo_url"`
+	GitHubToken string    `json:"github_token"`
 
-	PlatformConfigs []PlatformConfig `gorm:"foreignKey:ProductID" json:"platform_configs,omitempty"`
-	AgentConfig     *AgentConfig     `gorm:"foreignKey:ProductID" json:"agent_config,omitempty"`
-	ReporterConfigs []ReporterConfig `gorm:"foreignKey:ProductID" json:"reporter_configs,omitempty"`
-	Issues          []Issue          `gorm:"foreignKey:ProductID" json:"issues,omitempty"`
-	Messages        []Message        `gorm:"foreignKey:ProductID" json:"messages,omitempty"`
+	Insights []Insight `gorm:"foreignKey:ProductID" json:"insights,omitempty"`
+	Messages []Message `gorm:"foreignKey:ProductID" json:"messages,omitempty"`
 }

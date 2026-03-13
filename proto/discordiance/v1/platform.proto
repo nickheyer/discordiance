@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package discordiance.v1;
+
+import "discordiance/v1/types.proto";
+
+option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
+
+// PlatformService provides CRUD for platforms.
+service PlatformService {
+  // ListPlatforms returns all platforms.
+  rpc ListPlatforms(ListPlatformsRequest) returns (ListPlatformsResponse) {}
+  // GetPlatform returns a single platform by ID.
+  rpc GetPlatform(GetPlatformRequest) returns (GetPlatformResponse) {}
+  // CreatePlatform creates a new platform.
+  rpc CreatePlatform(CreatePlatformRequest) returns (CreatePlatformResponse) {}
+  // UpdatePlatform updates an existing platform.
+  rpc UpdatePlatform(UpdatePlatformRequest) returns (UpdatePlatformResponse) {}
+  // DeletePlatform deletes a platform.
+  rpc DeletePlatform(DeletePlatformRequest) returns (DeletePlatformResponse) {}
+  // ListAvailablePlatforms returns registered platform type names.
+  rpc ListAvailablePlatforms(ListAvailablePlatformsRequest) returns (ListAvailablePlatformsResponse) {}
+}
+
+// ListPlatformsRequest is empty.
+message ListPlatformsRequest {}
+
+// ListPlatformsResponse contains all platforms.
+message ListPlatformsResponse {
+  repeated Platform platforms = 1;
+}
+
+// GetPlatformRequest requests a platform by ID.
+message GetPlatformRequest {
+  uint64 id = 1;
+}
+
+// GetPlatformResponse contains the requested platform.
+message GetPlatformResponse {
+  Platform platform = 1;
+}
+
+// CreatePlatformRequest creates a platform.
+message CreatePlatformRequest {
+  string name = 1;
+  string type = 2;
+  bool enabled = 3;
+  // Typed settings for this platform type.
+  oneof settings {
+    DiscordPlatformSettings discord_settings = 4;
+  }
+}
+
+// CreatePlatformResponse contains the created platform.
+message CreatePlatformResponse {
+  Platform platform = 1;
+}
+
+// UpdatePlatformRequest updates a platform.
+message UpdatePlatformRequest {
+  uint64 id = 1;
+  string name = 2;
+  string type = 3;
+  bool enabled = 4;
+  // Typed settings for this platform type.
+  oneof settings {
+    DiscordPlatformSettings discord_settings = 5;
+  }
+}
+
+// UpdatePlatformResponse contains the updated platform.
+message UpdatePlatformResponse {
+  Platform platform = 1;
+}
+
+// DeletePlatformRequest deletes a platform by ID.
+message DeletePlatformRequest {
+  uint64 id = 1;
+}
+
+// DeletePlatformResponse is empty.
+message DeletePlatformResponse {}
+
+// ListAvailablePlatformsRequest is empty.
+message ListAvailablePlatformsRequest {}
+
+// ListAvailablePlatformsResponse contains available platform type names.
+message ListAvailablePlatformsResponse {
+  repeated string platforms = 1;
+}

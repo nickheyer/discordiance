@@ -5,7 +5,6 @@ go 1.26.1
 require (
 	connectrpc.com/connect v1.19.1
 	github.com/bwmarrin/discordgo v0.29.0
-	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/google/go-github/v68 v68.0.0
 	github.com/sashabaranov/go-openai v1.41.2
 	github.com/spf13/viper v1.21.0
@@ -16,6 +15,7 @@ require (
 )
 
 require (
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect

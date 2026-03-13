@@ -15,30 +15,38 @@ import (
 	"gorm.io/gorm"
 )
 
+// reporterEntry pairs a reporter with its database config for auto-file checks.
+type reporterEntry struct {
+	reporter reporter.Reporter
+	config   models.Reporter
+}
+
 // Pipeline processes messages for a single product: Platform → Agent → Reporter.
 type Pipeline struct {
-	db               *gorm.DB
-	product          models.Product
-	platformConfigID uint
-	platform         platform.Platform
-	agent            *agent.Agent
-	reporters        []reporter.Reporter
-	msgChan          chan models.Message
-	batchSize        int
-	batchTimeout     time.Duration
-	logger           *slog.Logger
+	db           *gorm.DB
+	pipelineID   uint
+	product      models.Product
+	platformID   uint
+	platform     platform.Platform
+	agent        *agent.Agent
+	reporters    []reporterEntry
+	msgChan      chan models.Message
+	batchSize    int
+	batchTimeout time.Duration
+	logger       *slog.Logger
 }
 
 // PipelineConfig holds the configuration for creating a pipeline.
 type PipelineConfig struct {
-	DB               *gorm.DB
-	Product          models.Product
-	PlatformConfigID uint
-	Platform         platform.Platform
-	Agent            *agent.Agent
-	Reporters        []reporter.Reporter
-	BatchSize        int
-	BatchTimeout     time.Duration
+	DB           *gorm.DB
+	PipelineID   uint
+	Product      models.Product
+	PlatformID   uint
+	Platform     platform.Platform
+	Agent        *agent.Agent
+	Reporters    []reporterEntry
+	BatchSize    int
+	BatchTimeout time.Duration
 }
 
 func NewPipeline(cfg PipelineConfig) *Pipeline {
@@ -49,21 +57,22 @@ func NewPipeline(cfg PipelineConfig) *Pipeline {
 		cfg.BatchTimeout = 30 * time.Second
 	}
 
-	logger := slog.With("product", cfg.Product.Name, "product_id", cfg.Product.ID)
+	logger := slog.With("product", cfg.Product.Name, "product_id", cfg.Product.ID, "pipeline_id", cfg.PipelineID)
 	logger.Info("pipeline created", "batch_size", cfg.BatchSize, "batch_timeout", cfg.BatchTimeout,
-		"platform_config_id", cfg.PlatformConfigID, "reporters", len(cfg.Reporters))
+		"platform_id", cfg.PlatformID, "reporters", len(cfg.Reporters))
 
 	return &Pipeline{
-		db:               cfg.DB,
-		product:          cfg.Product,
-		platformConfigID: cfg.PlatformConfigID,
-		platform:         cfg.Platform,
-		agent:            cfg.Agent,
-		reporters:        cfg.Reporters,
-		msgChan:          make(chan models.Message, 100),
-		batchSize:        cfg.BatchSize,
-		batchTimeout:     cfg.BatchTimeout,
-		logger:           logger,
+		db:           cfg.DB,
+		pipelineID:   cfg.PipelineID,
+		product:      cfg.Product,
+		platformID:   cfg.PlatformID,
+		platform:     cfg.Platform,
+		agent:        cfg.Agent,
+		reporters:    cfg.Reporters,
+		msgChan:      make(chan models.Message, 100),
+		batchSize:    cfg.BatchSize,
+		batchTimeout: cfg.BatchTimeout,
+		logger:       logger,
 	}
 }
 
@@ -99,11 +108,11 @@ func (p *Pipeline) Stop(ctx context.Context) error {
 		p.logger.Info("platform stopped")
 	}
 
-	for _, r := range p.reporters {
-		if err := r.Close(ctx); err != nil {
-			p.logger.Error("closing reporter", "type", r.Type(), "error", err)
+	for _, re := range p.reporters {
+		if err := re.reporter.Close(ctx); err != nil {
+			p.logger.Error("closing reporter", "type", re.reporter.Type(), "error", err)
 		} else {
-			p.logger.Info("reporter closed", "type", r.Type())
+			p.logger.Info("reporter closed", "type", re.reporter.Type())
 		}
 	}
 	close(p.msgChan)
@@ -157,7 +166,7 @@ func (p *Pipeline) RunBackfill(ctx context.Context) {
 
 func (p *Pipeline) loadCursor(channelID string) string {
 	var cursor models.BackfillCursor
-	err := p.db.Where("platform_config_id = ? AND channel_id = ?", p.platformConfigID, channelID).
+	err := p.db.Where("platform_id = ? AND channel_id = ?", p.platformID, channelID).
 		First(&cursor).Error
 	if err != nil {
 		p.logger.Debug("no existing cursor found", "channel_id", channelID)
@@ -169,12 +178,12 @@ func (p *Pipeline) loadCursor(channelID string) string {
 
 func (p *Pipeline) saveCursor(channelID string, messageID string) {
 	cursor := models.BackfillCursor{
-		PlatformConfigID: p.platformConfigID,
-		ChannelID:        channelID,
-		LastMessageID:    messageID,
+		PlatformID:    p.platformID,
+		ChannelID:     channelID,
+		LastMessageID: messageID,
 	}
 	result := p.db.
-		Where("platform_config_id = ? AND channel_id = ?", p.platformConfigID, channelID).
+		Where("platform_id = ? AND channel_id = ?", p.platformID, channelID).
 		Assign(models.BackfillCursor{LastMessageID: messageID}).
 		FirstOrCreate(&cursor)
 	if result.Error != nil {
@@ -251,18 +260,58 @@ func (p *Pipeline) persistMessage(msg *models.Message) error {
 	return nil
 }
 
+// buildAnalysisContext assembles product context for the agent.
+func (p *Pipeline) buildAnalysisContext() *agent.AnalysisContext {
+	actx := &agent.AnalysisContext{
+		ProductDescription: p.product.Description,
+	}
+
+	// Load product files
+	var files []models.ProductFile
+	if err := p.db.Where("product_id = ?", p.product.ID).Find(&files).Error; err == nil && len(files) > 0 {
+		actx.FileContents = make(map[string]string, len(files))
+		for _, f := range files {
+			actx.FileContents[f.Filename] = string(f.Content)
+		}
+	}
+
+	// Load cached repo context
+	var cache models.ProductContextCache
+	if err := p.db.Where("product_id = ?", p.product.ID).First(&cache).Error; err == nil {
+		actx.RepoContext = cache.Content
+	}
+
+	// Load existing open/acknowledged insights (Phase 4)
+	var existing []models.Insight
+	if err := p.db.Where("product_id = ? AND status IN ?", p.product.ID, []string{"open", "acknowledged"}).
+		Order("created_at desc").Limit(50).Find(&existing).Error; err == nil {
+		for _, ei := range existing {
+			actx.ExistingInsights = append(actx.ExistingInsights, agent.ExistingInsight{
+				Title:    ei.Title,
+				Status:   ei.Status,
+				Category: ei.Category,
+			})
+		}
+	}
+
+	return actx
+}
+
 func (p *Pipeline) processBatch(ctx context.Context, batch []models.Message) {
 	p.logger.Info("processing batch", "size", len(batch))
 	start := time.Now()
 
-	result, err := p.agent.Analyze(ctx, batch)
+	// Build analysis context from product data
+	analysisCtx := p.buildAnalysisContext()
+
+	result, err := p.agent.Analyze(ctx, batch, analysisCtx)
 	elapsed := time.Since(start)
 	if err != nil {
 		p.logger.Error("agent analysis failed", "error", err, "duration", elapsed, "batch_size", len(batch))
 		return
 	}
 
-	p.logger.Info("agent analysis complete", "issues_detected", len(result.Issues), "duration", elapsed, "batch_size", len(batch))
+	p.logger.Info("agent analysis complete", "insights_detected", len(result.Insights), "duration", elapsed, "batch_size", len(batch))
 
 	// Collect message IDs for source tracking
 	msgIDs := make([]string, len(batch))
@@ -271,10 +320,10 @@ func (p *Pipeline) processBatch(ctx context.Context, batch []models.Message) {
 	}
 	sourceMsgIDs := strings.Join(msgIDs, ",")
 
-	for _, detected := range result.Issues {
-		p.logger.Info("processing detected issue", "title", detected.Title, "severity", detected.Severity, "category", detected.Category)
+	for _, detected := range result.Insights {
+		p.logger.Info("processing detected insight", "title", detected.Title, "severity", detected.Severity, "category", detected.Category)
 
-		issue := models.Issue{
+		insight := models.Insight{
 			ProductID:    p.product.ID,
 			Title:        detected.Title,
 			Description:  detected.Description,
@@ -286,53 +335,57 @@ func (p *Pipeline) processBatch(ctx context.Context, batch []models.Message) {
 		}
 
 		// Check for duplicate by fingerprint
-		var existing models.Issue
+		var existing models.Insight
 		if err := p.db.Where("fingerprint = ? AND product_id = ? AND status = ?",
-			issue.Fingerprint, p.product.ID, "open").First(&existing).Error; err == nil {
-			p.logger.Info("duplicate issue found, skipping", "title", issue.Title, "existing_id", existing.ID, "fingerprint", issue.Fingerprint)
+			insight.Fingerprint, p.product.ID, "open").First(&existing).Error; err == nil {
+			p.logger.Info("duplicate insight found, skipping", "title", insight.Title, "existing_id", existing.ID, "fingerprint", insight.Fingerprint)
 			continue
 		}
 
-		if err := p.db.Create(&issue).Error; err != nil {
-			p.logger.Error("creating issue", "title", issue.Title, "error", err)
+		if err := p.db.Create(&insight).Error; err != nil {
+			p.logger.Error("creating insight", "title", insight.Title, "error", err)
 			continue
 		}
 
-		p.logger.Info("issue created", "id", issue.ID, "title", issue.Title, "severity", issue.Severity)
+		p.logger.Info("insight created", "id", insight.ID, "title", insight.Title, "severity", insight.Severity)
 
 		// Mark messages as processed
 		p.db.Model(&models.Message{}).Where("id IN ?", msgIDs).Update("processed", true)
 		p.logger.Info("messages marked as processed", "count", len(msgIDs))
 
-		// File to all reporters
-		for _, r := range p.reporters {
-			p.logger.Info("checking reporter for duplicate", "reporter", r.Type(), "issue_title", issue.Title)
-			// Check for duplicate in external system
-			dupID, err := r.FindDuplicate(ctx, issue)
-			if err != nil {
-				p.logger.Error("checking duplicate", "reporter", r.Type(), "error", err)
-			}
-			if dupID != "" {
-				p.logger.Info("external duplicate found, skipping reporter", "reporter", r.Type(), "external_id", dupID)
+		// File to reporters with auto_file enabled
+		for _, re := range p.reporters {
+			if !re.config.AutoFile {
+				p.logger.Info("auto-file disabled, skipping reporter", "reporter", re.reporter.Type(), "config_id", re.config.ID)
 				continue
 			}
 
-			p.logger.Info("filing report", "reporter", r.Type(), "issue_id", issue.ID, "issue_title", issue.Title)
-			report, err := r.FileReport(ctx, issue)
+			p.logger.Info("checking reporter for duplicate", "reporter", re.reporter.Type(), "insight_title", insight.Title)
+			dupID, err := re.reporter.FindDuplicate(ctx, insight)
 			if err != nil {
-				p.logger.Error("filing report failed", "reporter", r.Type(), "error", err)
+				p.logger.Error("checking duplicate", "reporter", re.reporter.Type(), "error", err)
+			}
+			if dupID != "" {
+				p.logger.Info("external duplicate found, skipping reporter", "reporter", re.reporter.Type(), "external_id", dupID)
+				continue
+			}
+
+			p.logger.Info("filing report", "reporter", re.reporter.Type(), "insight_id", insight.ID, "insight_title", insight.Title)
+			report, err := re.reporter.FileReport(ctx, insight)
+			if err != nil {
+				p.logger.Error("filing report failed", "reporter", re.reporter.Type(), "error", err)
 				continue
 			}
 
 			if err := p.db.Create(report).Error; err != nil {
 				p.logger.Error("saving report", "error", err)
 			} else {
-				p.logger.Info("report saved", "reporter", r.Type(), "external_url", report.ExternalURL)
+				p.logger.Info("report saved", "reporter", re.reporter.Type(), "external_url", report.ExternalURL)
 			}
 		}
 	}
 
-	p.logger.Info("batch processing complete", "batch_size", len(batch), "issues_created", len(result.Issues), "total_duration", time.Since(start))
+	p.logger.Info("batch processing complete", "batch_size", len(batch), "insights_created", len(result.Insights), "total_duration", time.Since(start))
 }
 
 func fingerprint(title, category string) string {

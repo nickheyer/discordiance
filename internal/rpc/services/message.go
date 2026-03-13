@@ -24,12 +24,19 @@ func NewMessageService(db *gorm.DB) *MessageService {
 }
 
 func (s *MessageService) ListMessages(ctx context.Context, req *connect.Request[v1.ListMessagesRequest]) (*connect.Response[v1.ListMessagesResponse], error) {
-	slog.Info("rpc: ListMessages", "product_id", req.Msg.ProductId, "page", req.Msg.Page, "page_size", req.Msg.PageSize)
+	slog.Info("rpc: ListMessages", "product_id", req.Msg.ProductId, "page", req.Msg.Page, "page_size", req.Msg.PageSize, "processed_filter", req.Msg.ProcessedFilter)
 
 	query := s.db.Model(&models.Message{})
 
 	if req.Msg.ProductId > 0 {
 		query = query.Where("product_id = ?", req.Msg.ProductId)
+	}
+
+	switch req.Msg.ProcessedFilter {
+	case "processed":
+		query = query.Where("processed = ?", true)
+	case "unprocessed":
+		query = query.Where("processed = ?", false)
 	}
 
 	var totalCount int64
@@ -68,6 +75,62 @@ func (s *MessageService) ListMessages(ctx context.Context, req *connect.Request[
 	}
 
 	return connect.NewResponse(resp), nil
+}
+
+func (s *MessageService) DeleteMessages(ctx context.Context, req *connect.Request[v1.DeleteMessagesRequest]) (*connect.Response[v1.DeleteMessagesResponse], error) {
+	slog.Info("rpc: DeleteMessages", "product_id", req.Msg.ProductId, "processed_filter", req.Msg.ProcessedFilter, "ids", len(req.Msg.Ids))
+
+	query := s.db.Model(&models.Message{})
+
+	if len(req.Msg.Ids) > 0 {
+		query = query.Where("id IN ?", req.Msg.Ids)
+	} else {
+		if req.Msg.ProductId > 0 {
+			query = query.Where("product_id = ?", req.Msg.ProductId)
+		}
+		switch req.Msg.ProcessedFilter {
+		case "processed":
+			query = query.Where("processed = ?", true)
+		case "unprocessed":
+			query = query.Where("processed = ?", false)
+		}
+	}
+
+	result := query.Delete(&models.Message{})
+	if result.Error != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("deleting messages: %w", result.Error))
+	}
+
+	slog.Info("rpc: DeleteMessages success", "deleted", result.RowsAffected)
+
+	return connect.NewResponse(&v1.DeleteMessagesResponse{
+		DeletedCount: int32(result.RowsAffected),
+	}), nil
+}
+
+func (s *MessageService) GetMessageStats(ctx context.Context, req *connect.Request[v1.GetMessageStatsRequest]) (*connect.Response[v1.GetMessageStatsResponse], error) {
+	slog.Info("rpc: GetMessageStats", "product_id", req.Msg.ProductId)
+
+	query := s.db.Model(&models.Message{})
+	if req.Msg.ProductId > 0 {
+		query = query.Where("product_id = ?", req.Msg.ProductId)
+	}
+
+	var total int64
+	query.Count(&total)
+
+	var processed int64
+	pq := s.db.Model(&models.Message{}).Where("processed = ?", true)
+	if req.Msg.ProductId > 0 {
+		pq = pq.Where("product_id = ?", req.Msg.ProductId)
+	}
+	pq.Count(&processed)
+
+	return connect.NewResponse(&v1.GetMessageStatsResponse{
+		Total:       int32(total),
+		Processed:   int32(processed),
+		Unprocessed: int32(total - processed),
+	}), nil
 }
 
 func messageToProto(m models.Message) *v1.Message {

@@ -29,17 +29,16 @@ type Discord struct {
 
 func (d *Discord) Type() string { return "discord" }
 
-func (d *Discord) Connect(ctx context.Context, settings models.JSONMap) error {
+func (d *Discord) Connect(ctx context.Context, cfg models.Platform) error {
 	slog.Info("discord: connecting")
 
-	token := settings["token"]
-	if token == "" {
+	if cfg.Token == "" {
 		return fmt.Errorf("discord: token is required")
 	}
-	slog.Info("discord: token present", "length", len(token))
+	slog.Info("discord: token present", "length", len(cfg.Token))
 
-	if channels, ok := settings["channel_ids"]; ok && channels != "" {
-		d.channelIDs = strings.Split(channels, ",")
+	if cfg.ChannelIds != "" {
+		d.channelIDs = strings.Split(cfg.ChannelIds, ",")
 		for i := range d.channelIDs {
 			d.channelIDs[i] = strings.TrimSpace(d.channelIDs[i])
 		}
@@ -48,7 +47,7 @@ func (d *Discord) Connect(ctx context.Context, settings models.JSONMap) error {
 		slog.Info("discord: no channels configured, will auto-discover")
 	}
 
-	session, err := discordgo.New("Bot " + token)
+	session, err := discordgo.New("Bot " + cfg.Token)
 	if err != nil {
 		return fmt.Errorf("discord: creating session: %w", err)
 	}

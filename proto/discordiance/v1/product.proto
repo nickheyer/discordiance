@@ -42,6 +42,9 @@ message GetProductResponse {
 message CreateProductRequest {
   string name = 1;
   bool enabled = 2;
+  string description = 3;
+  string repo_url = 4;
+  string github_token = 5;
 }
 
 // CreateProductResponse contains the created product.
@@ -54,6 +57,9 @@ message UpdateProductRequest {
   uint64 id = 1;
   string name = 2;
   bool enabled = 3;
+  string description = 4;
+  string repo_url = 5;
+  string github_token = 6;
 }
 
 // UpdateProductResponse contains the updated product.

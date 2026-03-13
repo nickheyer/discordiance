@@ -1,93 +1,205 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { rpcClient } from '$lib/api/rpc-client';
-	import type { Message } from '$lib/proto/discordiance/v1/types_pb';
-	import Badge from '$lib/components/badge.svelte';
-	import { ChevronLeft, ChevronRight } from '@lucide/svelte';
+	import { toast } from 'svelte-sonner';
+	import { formatRelative } from '$lib/utils';
+	import type { Message, Product } from '$lib/proto/discordiance/v1/types_pb';
+	import { MessageSquare, ChevronLeft, ChevronRight, Trash2, CheckCircle, Circle } from '@lucide/svelte';
 
 	let messages = $state<Message[]>([]);
+	let products = $state<Product[]>([]);
 	let totalCount = $state(0);
-	let pg = $state(1);
-	const pgSize = 50;
+	let stats = $state({ total: 0, processed: 0, unprocessed: 0 });
+	let loading = $state(true);
 
-	onMount(() => load());
+	let filterProductId = $state('');
+	let filterProcessed = $state('all');
+	let currentPage = $state(1);
+	let pageSize = 50;
+	let confirmDeleteFilter = $state(false);
 
 	async function load() {
-		const resp = await rpcClient.message.listMessages({ pageSize: pgSize, page: pg });
-		messages = resp.messages;
-		totalCount = resp.totalCount;
+		loading = true;
+		try {
+			const [msgRes, prodRes, statsRes] = await Promise.all([
+				rpcClient.message.listMessages({
+					productId: filterProductId ? BigInt(filterProductId) : BigInt(0),
+					processedFilter: filterProcessed,
+					pageSize,
+					page: currentPage
+				}),
+				rpcClient.product.listProducts({}),
+				rpcClient.message.getMessageStats({
+					productId: filterProductId ? BigInt(filterProductId) : BigInt(0)
+				})
+			]);
+			messages = msgRes.messages;
+			totalCount = msgRes.totalCount;
+			products = prodRes.products;
+			stats = { total: statsRes.total, processed: statsRes.processed, unprocessed: statsRes.unprocessed };
+		} catch {
+			// handled
+		} finally {
+			loading = false;
+		}
 	}
 
-	const totalPages = $derived(Math.max(1, Math.ceil(totalCount / pgSize)));
+	$effect(() => {
+		filterProductId;
+		filterProcessed;
+		currentPage;
+		load();
+	});
 
-	function formatTime(ts: { seconds: bigint } | undefined): string {
-		if (!ts) return '';
-		return new Date(Number(ts.seconds) * 1000).toLocaleString();
+	async function deleteFiltered() {
+		try {
+			const res = await rpcClient.message.deleteMessages({
+				productId: filterProductId ? BigInt(filterProductId) : BigInt(0),
+				processedFilter: filterProcessed
+			});
+			toast.success(`Deleted ${res.deletedCount} messages`);
+			confirmDeleteFilter = false;
+			load();
+		} catch {
+			// handled
+		}
 	}
 
-	function truncate(s: string, n = 100): string {
-		return s.length <= n ? s : s.slice(0, n) + '...';
-	}
+	let totalPages = $derived(Math.max(1, Math.ceil(totalCount / pageSize)));
 </script>
 
-<div class="space-y-6">
+<div class="page-header">
 	<div>
-		<h1 class="text-xl font-semibold tracking-tight">Messages</h1>
-		<p class="text-sm text-muted-foreground mt-0.5">Raw messages collected from platform sources</p>
+		<h1 class="page-title">Messages</h1>
+		<p class="page-subtitle">Incoming platform messages from all sources</p>
 	</div>
+</div>
 
-	{#if messages.length === 0}
-		<div class="card card-body py-16 text-center">
-			<p class="text-muted-foreground">No messages received yet. Messages appear here once a platform is connected and running.</p>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+	<div class="kpi-card py-3 px-4">
+		<span class="kpi-label text-[10px]">Total</span>
+		<span class="text-lg font-bold">{stats.total.toLocaleString()}</span>
+	</div>
+	<div class="kpi-card py-3 px-4">
+		<span class="kpi-label text-[10px]">Processed</span>
+		<span class="text-lg font-bold text-success">{stats.processed.toLocaleString()}</span>
+	</div>
+	<div class="kpi-card py-3 px-4">
+		<span class="kpi-label text-[10px]">Unprocessed</span>
+		<span class="text-lg font-bold text-warning">{stats.unprocessed.toLocaleString()}</span>
+	</div>
+</div>
+
+<div class="filter-bar">
+	<select class="form-select" bind:value={filterProductId} onchange={() => (currentPage = 1)}>
+		<option value="">All Products</option>
+		{#each products as p}
+			<option value={String(p.id)}>{p.name}</option>
+		{/each}
+	</select>
+	<select class="form-select" bind:value={filterProcessed} onchange={() => (currentPage = 1)}>
+		<option value="all">All Messages</option>
+		<option value="processed">Processed</option>
+		<option value="unprocessed">Unprocessed</option>
+	</select>
+	<div class="ml-auto">
+		<button class="btn-outline-destructive btn-sm" onclick={() => (confirmDeleteFilter = true)}>
+			<Trash2 class="w-3 h-3" />
+			Delete Filtered
+		</button>
+	</div>
+</div>
+
+{#if loading}
+	<div class="card">
+		<div class="p-8">
+			{#each Array(5) as _}
+				<div class="skeleton h-10 w-full mb-2"></div>
+			{/each}
 		</div>
-	{:else}
-		<div class="card overflow-hidden">
+	</div>
+{:else if messages.length === 0}
+	<div class="card">
+		<div class="empty-state">
+			<MessageSquare class="w-10 h-10 empty-state-icon" />
+			<p class="empty-state-title">No messages</p>
+			<p class="empty-state-text">Messages appear when pipelines collect data from platform sources</p>
+		</div>
+	</div>
+{:else}
+	<div class="card overflow-hidden">
+		<div class="overflow-x-auto">
 			<table class="data-table">
 				<thead>
 					<tr>
-						<th>Platform</th>
-						<th class="hidden sm:table-cell">Author</th>
+						<th>Author</th>
 						<th>Content</th>
-						<th class="hidden md:table-cell">Time</th>
-						<th>Processed</th>
+						<th>Platform</th>
+						<th>Channel</th>
+						<th>Status</th>
+						<th>Time</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each messages as msg}
 						<tr>
-							<td><Badge value={msg.platformType} /></td>
-							<td class="hidden sm:table-cell">
-								<span class="text-sm">{msg.authorName}</span>
-								{#if msg.channelId}
-									<span class="text-xs text-muted-foreground block font-mono">#{msg.channelId}</span>
+							<td class="font-medium whitespace-nowrap">{msg.authorName || msg.authorId}</td>
+							<td class="max-w-[300px]">
+								<span class="truncate-2 text-sm">{msg.content}</span>
+							</td>
+							<td><span class="badge badge-muted">{msg.platformType}</span></td>
+							<td class="text-xs text-muted-foreground font-mono">{msg.channelId}</td>
+							<td>
+								{#if msg.processed}
+									<span class="flex items-center gap-1 text-xs text-success">
+										<CheckCircle class="w-3 h-3" /> Processed
+									</span>
+								{:else}
+									<span class="flex items-center gap-1 text-xs text-muted-foreground">
+										<Circle class="w-3 h-3" /> Pending
+									</span>
 								{/if}
 							</td>
-							<td class="max-w-md">
-								<p class="text-sm truncate" title={msg.content}>{truncate(msg.content)}</p>
-							</td>
-							<td class="text-xs text-muted-foreground hidden md:table-cell whitespace-nowrap">{formatTime(msg.timestamp)}</td>
-							<td>
-								<Badge value={msg.processed ? 'processed' : 'pending'} type="status" />
-							</td>
+							<td class="text-xs text-muted-foreground whitespace-nowrap">{formatRelative(msg.timestamp || msg.createdAt)}</td>
 						</tr>
 					{/each}
 				</tbody>
 			</table>
 		</div>
-
 		{#if totalPages > 1}
-			<div class="flex items-center justify-between text-sm">
-				<span class="text-muted-foreground">{totalCount} messages</span>
-				<div class="flex items-center gap-1">
-					<button class="btn-icon" disabled={pg <= 1} onclick={() => { pg--; load(); }}>
-						<ChevronLeft class="h-4 w-4" />
+			<div class="pagination px-4">
+				<span class="pagination-info">
+					Page {currentPage} of {totalPages} ({totalCount} total)
+				</span>
+				<div class="pagination-buttons">
+					<button class="pagination-btn" disabled={currentPage <= 1} onclick={() => (currentPage = Math.max(1, currentPage - 1))}>
+						<ChevronLeft class="w-4 h-4" />
 					</button>
-					<span class="px-2 text-muted-foreground">{pg} / {totalPages}</span>
-					<button class="btn-icon" disabled={pg >= totalPages} onclick={() => { pg++; load(); }}>
-						<ChevronRight class="h-4 w-4" />
+					<button class="pagination-btn" disabled={currentPage >= totalPages} onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}>
+						<ChevronRight class="w-4 h-4" />
 					</button>
 				</div>
 			</div>
 		{/if}
-	{/if}
-</div>
+	</div>
+{/if}
+
+{#if confirmDeleteFilter}
+	<div class="modal-backdrop" onclick={() => (confirmDeleteFilter = false)} role="presentation">
+		<div class="confirm-dialog" onclick={(e) => e.stopPropagation()} role="dialog">
+			<div class="modal-header">
+				<h3 class="modal-title">Delete Messages</h3>
+			</div>
+			<div class="modal-body">
+				<p class="text-sm">This will permanently delete all messages matching the current filters. This action cannot be undone.</p>
+				<div class="mt-2 p-2 rounded bg-muted text-xs space-y-1">
+					<p><strong>Product:</strong> {filterProductId ? products.find((p) => String(p.id) === filterProductId)?.name : 'All'}</p>
+					<p><strong>Status:</strong> {filterProcessed === 'all' ? 'All' : filterProcessed}</p>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button class="btn-secondary" onclick={() => (confirmDeleteFilter = false)}>Cancel</button>
+				<button class="btn-destructive" onclick={deleteFiltered}>Delete Messages</button>
+			</div>
+		</div>
+	</div>
+{/if}

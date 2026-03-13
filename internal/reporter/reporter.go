@@ -6,22 +6,22 @@ import (
 	"github.com/nickheyer/discordiance/internal/models"
 )
 
-// Reporter defines the interface for any issue destination (GitHub, Jira, etc.).
+// Reporter defines the interface for any insight destination (GitHub, Jira, etc.).
 type Reporter interface {
 	// Type returns the reporter identifier (e.g. "github").
 	Type() string
 
-	// Init initializes the reporter with the given settings.
-	Init(ctx context.Context, settings models.JSONMap) error
+	// Init initializes the reporter with the given config.
+	Init(ctx context.Context, cfg models.Reporter) error
 
 	// FileReport creates a new issue/ticket in the external system.
-	FileReport(ctx context.Context, issue models.Issue) (*models.Report, error)
+	FileReport(ctx context.Context, insight models.Insight) (*models.Report, error)
 
 	// UpdateReport updates an existing issue/ticket.
-	UpdateReport(ctx context.Context, externalID string, issue models.Issue) error
+	UpdateReport(ctx context.Context, externalID string, insight models.Insight) error
 
-	// FindDuplicate checks if a similar issue already exists.
-	FindDuplicate(ctx context.Context, issue models.Issue) (string, error)
+	// FindDuplicate checks if a similar insight already exists.
+	FindDuplicate(ctx context.Context, insight models.Insight) (string, error)
 
 	// Close gracefully shuts down the reporter.
 	Close(ctx context.Context) error

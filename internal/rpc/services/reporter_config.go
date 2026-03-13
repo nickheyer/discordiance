@@ -10,88 +10,152 @@ import (
 	"github.com/nickheyer/discordiance/internal/reporter"
 	v1 "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1"
 	"github.com/nickheyer/discordiance/pkg/proto/discordiance/v1/discordiancev1connect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"
 )
 
-var _ discordiancev1connect.ReporterConfigServiceHandler = (*ReporterConfigService)(nil)
+var _ discordiancev1connect.ReporterServiceHandler = (*ReporterService)(nil)
 
-type ReporterConfigService struct {
+type ReporterService struct {
 	db *gorm.DB
 }
 
-func NewReporterConfigService(db *gorm.DB) *ReporterConfigService {
-	return &ReporterConfigService{db: db}
+func NewReporterService(db *gorm.DB) *ReporterService {
+	return &ReporterService{db: db}
 }
 
-func (s *ReporterConfigService) CreateReporterConfig(ctx context.Context, req *connect.Request[v1.CreateReporterConfigRequest]) (*connect.Response[v1.CreateReporterConfigResponse], error) {
-	if req.Msg.ProductId == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("product_id is required"))
+func (s *ReporterService) ListReporters(ctx context.Context, req *connect.Request[v1.ListReportersRequest]) (*connect.Response[v1.ListReportersResponse], error) {
+	var reporters []models.Reporter
+	if err := s.db.Find(&reporters).Error; err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("listing reporters: %w", err))
+	}
+	slog.Info("rpc: ListReporters", "count", len(reporters))
+	resp := &v1.ListReportersResponse{
+		Reporters: make([]*v1.Reporter, len(reporters)),
+	}
+	for i, c := range reporters {
+		resp.Reporters[i] = reporterToProto(c)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (s *ReporterService) GetReporter(ctx context.Context, req *connect.Request[v1.GetReporterRequest]) (*connect.Response[v1.GetReporterResponse], error) {
+	var cfg models.Reporter
+	if err := s.db.First(&cfg, req.Msg.Id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("reporter %d not found", req.Msg.Id))
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&v1.GetReporterResponse{
+		Reporter: reporterToProto(cfg),
+	}), nil
+}
+
+func (s *ReporterService) CreateReporter(ctx context.Context, req *connect.Request[v1.CreateReporterRequest]) (*connect.Response[v1.CreateReporterResponse], error) {
+	if req.Msg.Name == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("name is required"))
 	}
 	if req.Msg.Type == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("type is required"))
 	}
 
-	slog.Info("rpc: CreateReporterConfig", "product_id", req.Msg.ProductId, "type", req.Msg.Type)
+	slog.Info("rpc: CreateReporter", "name", req.Msg.Name, "type", req.Msg.Type)
 
-	cfg := models.ReporterConfig{
-		ProductID: uint(req.Msg.ProductId),
-		Type:      req.Msg.Type,
-		Enabled:   req.Msg.Enabled,
-		Settings:  models.JSONMap(req.Msg.Settings),
+	cfg := models.Reporter{
+		Name:    req.Msg.Name,
+		Type:    req.Msg.Type,
+		Enabled: req.Msg.Enabled,
 	}
+	applyReporterSettings(&cfg, req.Msg.GetGithubSettings())
+
 	if err := s.db.Create(&cfg).Error; err != nil {
-		slog.Error("rpc: CreateReporterConfig failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("creating reporter config: %w", err))
+		slog.Error("rpc: CreateReporter failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("creating reporter: %w", err))
 	}
 
-	slog.Info("rpc: CreateReporterConfig success", "id", cfg.ID, "type", cfg.Type)
-	return connect.NewResponse(&v1.CreateReporterConfigResponse{
-		ReporterConfig: reporterConfigToProto(cfg),
+	slog.Info("rpc: CreateReporter success", "id", cfg.ID, "type", cfg.Type)
+	return connect.NewResponse(&v1.CreateReporterResponse{
+		Reporter: reporterToProto(cfg),
 	}), nil
 }
 
-func (s *ReporterConfigService) UpdateReporterConfig(ctx context.Context, req *connect.Request[v1.UpdateReporterConfigRequest]) (*connect.Response[v1.UpdateReporterConfigResponse], error) {
-	slog.Info("rpc: UpdateReporterConfig", "id", req.Msg.Id, "type", req.Msg.Type)
+func (s *ReporterService) UpdateReporter(ctx context.Context, req *connect.Request[v1.UpdateReporterRequest]) (*connect.Response[v1.UpdateReporterResponse], error) {
+	slog.Info("rpc: UpdateReporter", "id", req.Msg.Id, "type", req.Msg.Type)
 
-	var cfg models.ReporterConfig
+	var cfg models.Reporter
 	if err := s.db.First(&cfg, req.Msg.Id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			slog.Warn("rpc: UpdateReporterConfig not found", "id", req.Msg.Id)
-			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("reporter config %d not found", req.Msg.Id))
+			slog.Warn("rpc: UpdateReporter not found", "id", req.Msg.Id)
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("reporter %d not found", req.Msg.Id))
 		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
+	cfg.Name = req.Msg.Name
 	cfg.Type = req.Msg.Type
 	cfg.Enabled = req.Msg.Enabled
-	cfg.Settings = models.JSONMap(req.Msg.Settings)
+	applyReporterSettings(&cfg, req.Msg.GetGithubSettings())
+
 	if err := s.db.Save(&cfg).Error; err != nil {
-		slog.Error("rpc: UpdateReporterConfig failed", "id", req.Msg.Id, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("updating reporter config: %w", err))
+		slog.Error("rpc: UpdateReporter failed", "id", req.Msg.Id, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("updating reporter: %w", err))
 	}
 
-	slog.Info("rpc: UpdateReporterConfig success", "id", cfg.ID, "type", cfg.Type)
-	return connect.NewResponse(&v1.UpdateReporterConfigResponse{
-		ReporterConfig: reporterConfigToProto(cfg),
+	slog.Info("rpc: UpdateReporter success", "id", cfg.ID, "type", cfg.Type)
+	return connect.NewResponse(&v1.UpdateReporterResponse{
+		Reporter: reporterToProto(cfg),
 	}), nil
 }
 
-func (s *ReporterConfigService) DeleteReporterConfig(ctx context.Context, req *connect.Request[v1.DeleteReporterConfigRequest]) (*connect.Response[v1.DeleteReporterConfigResponse], error) {
-	slog.Info("rpc: DeleteReporterConfig", "id", req.Msg.Id)
+func (s *ReporterService) DeleteReporter(ctx context.Context, req *connect.Request[v1.DeleteReporterRequest]) (*connect.Response[v1.DeleteReporterResponse], error) {
+	slog.Info("rpc: DeleteReporter", "id", req.Msg.Id)
 
-	if err := s.db.Delete(&models.ReporterConfig{}, req.Msg.Id).Error; err != nil {
-		slog.Error("rpc: DeleteReporterConfig failed", "id", req.Msg.Id, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("deleting reporter config: %w", err))
+	if err := s.db.Delete(&models.Reporter{}, req.Msg.Id).Error; err != nil {
+		slog.Error("rpc: DeleteReporter failed", "id", req.Msg.Id, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("deleting reporter: %w", err))
 	}
 
-	slog.Info("rpc: DeleteReporterConfig success", "id", req.Msg.Id)
-	return connect.NewResponse(&v1.DeleteReporterConfigResponse{}), nil
+	slog.Info("rpc: DeleteReporter success", "id", req.Msg.Id)
+	return connect.NewResponse(&v1.DeleteReporterResponse{}), nil
 }
 
-func (s *ReporterConfigService) ListAvailableReporters(ctx context.Context, req *connect.Request[v1.ListAvailableReportersRequest]) (*connect.Response[v1.ListAvailableReportersResponse], error) {
+func (s *ReporterService) ListAvailableReporters(ctx context.Context, req *connect.Request[v1.ListAvailableReportersRequest]) (*connect.Response[v1.ListAvailableReportersResponse], error) {
 	reporters := reporter.Available()
 	slog.Info("rpc: ListAvailableReporters", "count", len(reporters))
 	return connect.NewResponse(&v1.ListAvailableReportersResponse{
 		Reporters: reporters,
 	}), nil
+}
+
+func applyReporterSettings(cfg *models.Reporter, gs *v1.GitHubReporterSettings) {
+	if gs != nil {
+		cfg.Token = gs.Token
+		cfg.Repo = gs.Repo
+		cfg.Labels = gs.Labels
+		cfg.AutoFile = gs.AutoFile
+	}
+}
+
+func reporterToProto(rc models.Reporter) *v1.Reporter {
+	out := &v1.Reporter{
+		Id:        uint64(rc.ID),
+		CreatedAt: timestamppb.New(rc.CreatedAt),
+		UpdatedAt: timestamppb.New(rc.UpdatedAt),
+		Name:      rc.Name,
+		Type:      rc.Type,
+		Enabled:   rc.Enabled,
+	}
+	switch rc.Type {
+	case "github":
+		out.Settings = &v1.Reporter_GithubSettings{
+			GithubSettings: &v1.GitHubReporterSettings{
+				Token:    rc.Token,
+				Repo:     rc.Repo,
+				Labels:   rc.Labels,
+				AutoFile: rc.AutoFile,
+			},
+		}
+	}
+	return out
 }
