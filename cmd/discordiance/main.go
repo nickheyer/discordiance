@@ -12,7 +12,12 @@ import (
 
 	"github.com/nickheyer/discordiance/internal/config"
 	"github.com/nickheyer/discordiance/internal/db"
+	"github.com/nickheyer/discordiance/internal/engine"
+	"github.com/nickheyer/discordiance/internal/platform"
+	discordadapter "github.com/nickheyer/discordiance/internal/platform/discord"
+	"github.com/nickheyer/discordiance/internal/reporter"
 	"github.com/nickheyer/discordiance/internal/rpc"
+	v1 "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1"
 )
 
 func main() {
@@ -42,9 +47,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize registries
+	platformReg := platform.NewRegistry()
+	platformReg.Register(v1.PlatformType_PLATFORM_TYPE_DISCORD, discordadapter.Factory)
+
+	reporterReg := reporter.NewRegistry()
+	reporterReg.Register(reporter.NewWebhookReporter())
+
+	// Start engine
+	eng := engine.New(database, platformReg, reporterReg)
+	eng.Start()
+
 	// Start RPC server
 	slog.Info("setting up RPC server")
-	rpcServer := rpc.NewServer(database)
+	rpcServer := rpc.NewServer(database, eng)
 	srv := &http.Server{
 		Addr:         ":" + cfg.Server.Port,
 		Handler:      rpcServer.Handler(),
@@ -74,7 +90,7 @@ func main() {
 	defer shutdownCancel()
 
 	slog.Info("stopping engine")
-	slog.Info("engine stopped")
+	eng.Stop()
 
 	slog.Info("shutting down HTTP server")
 	if err := srv.Shutdown(shutdownCtx); err != nil {

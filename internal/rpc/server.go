@@ -6,6 +6,7 @@ import (
 	"connectrpc.com/connect"
 	"gorm.io/gorm"
 
+	"github.com/nickheyer/discordiance/internal/engine"
 	"github.com/nickheyer/discordiance/internal/rpc/services"
 	"github.com/nickheyer/discordiance/pkg/proto/discordiance/v1/discordiancev1connect"
 	"golang.org/x/net/http2"
@@ -16,13 +17,13 @@ type Server struct {
 	handler http.Handler
 }
 
-func NewServer(db *gorm.DB) *Server {
+func NewServer(db *gorm.DB, eng *engine.Engine) *Server {
 	s := &Server{}
-	s.setupHandler(db)
+	s.setupHandler(db, eng)
 	return s
 }
 
-func (s *Server) setupHandler(db *gorm.DB) {
+func (s *Server) setupHandler(db *gorm.DB, eng *engine.Engine) {
 	mux := http.NewServeMux()
 
 	interceptors := []connect.Interceptor{
@@ -51,7 +52,7 @@ func (s *Server) setupHandler(db *gorm.DB) {
 	mux.Handle(platformPath, platformHandler)
 
 	pipelinePath, pipelineHandler := discordiancev1connect.NewPipelineServiceHandler(
-		services.NewPipelineService(db), opts...)
+		services.NewPipelineService(db, eng), opts...)
 	mux.Handle(pipelinePath, pipelineHandler)
 
 	insightPath, insightHandler := discordiancev1connect.NewInsightServiceHandler(

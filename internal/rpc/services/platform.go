@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/nickheyer/discordiance/internal/models"
+	discordadapter "github.com/nickheyer/discordiance/internal/platform/discord"
 	v1 "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1"
 	"github.com/nickheyer/discordiance/pkg/proto/discordiance/v1/discordiancev1connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -108,15 +109,35 @@ func (s *PlatformService) DeletePlatform(_ context.Context, req *connect.Request
 }
 
 func (s *PlatformService) TestPlatformConnection(_ context.Context, req *connect.Request[v1.TestPlatformConnectionRequest]) (*connect.Response[v1.TestPlatformConnectionResponse], error) {
-	var platform models.Platform
-	if err := s.db.First(&platform, "id = ?", req.Msg.Id).Error; err != nil {
+	p, err := loadPlatformFull(s.db, req.Msg.Id)
+	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
-	return connect.NewResponse(&v1.TestPlatformConnectionResponse{
-		Success: true,
-		Message: "connection test not yet implemented",
-	}), nil
+	switch v1.PlatformType(p.Type) {
+	case v1.PlatformType_PLATFORM_TYPE_DISCORD:
+		if p.DiscordConfig == nil {
+			return connect.NewResponse(&v1.TestPlatformConnectionResponse{
+				Success: false,
+				Message: "discord config not found",
+			}), nil
+		}
+		if err := discordadapter.TestConnection(p.DiscordConfig.BotToken); err != nil {
+			return connect.NewResponse(&v1.TestPlatformConnectionResponse{
+				Success: false,
+				Message: err.Error(),
+			}), nil
+		}
+		return connect.NewResponse(&v1.TestPlatformConnectionResponse{
+			Success: true,
+			Message: "connected successfully",
+		}), nil
+	default:
+		return connect.NewResponse(&v1.TestPlatformConnectionResponse{
+			Success: false,
+			Message: "connection test not implemented for this platform type",
+		}), nil
+	}
 }
 
 func (s *PlatformService) getPlatformResponse(id string) (*connect.Response[v1.CreatePlatformResponse], error) {

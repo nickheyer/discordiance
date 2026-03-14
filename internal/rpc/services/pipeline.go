@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/nickheyer/discordiance/internal/engine"
 	"github.com/nickheyer/discordiance/internal/models"
 	v1 "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1"
 	"github.com/nickheyer/discordiance/pkg/proto/discordiance/v1/discordiancev1connect"
@@ -15,11 +16,12 @@ import (
 
 type PipelineService struct {
 	discordiancev1connect.UnimplementedPipelineServiceHandler
-	db *gorm.DB
+	db     *gorm.DB
+	engine *engine.Engine
 }
 
-func NewPipelineService(db *gorm.DB) *PipelineService {
-	return &PipelineService{db: db}
+func NewPipelineService(db *gorm.DB, eng *engine.Engine) *PipelineService {
+	return &PipelineService{db: db, engine: eng}
 }
 
 func (s *PipelineService) CreatePipeline(_ context.Context, req *connect.Request[v1.CreatePipelineRequest]) (*connect.Response[v1.CreatePipelineResponse], error) {
@@ -140,6 +142,7 @@ func (s *PipelineService) StartPipeline(_ context.Context, req *connect.Request[
 	if err := s.db.Model(&models.Pipeline{}).Where("id = ?", req.Msg.Id).Update("status", int32(v1.PipelineStatus_PIPELINE_STATUS_RUNNING)).Error; err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	s.engine.StartPipeline(req.Msg.Id)
 	full, err := loadPipelineFull(s.db, req.Msg.Id)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -150,6 +153,7 @@ func (s *PipelineService) StartPipeline(_ context.Context, req *connect.Request[
 }
 
 func (s *PipelineService) StopPipeline(_ context.Context, req *connect.Request[v1.StopPipelineRequest]) (*connect.Response[v1.StopPipelineResponse], error) {
+	s.engine.StopPipeline(req.Msg.Id)
 	if err := s.db.Model(&models.Pipeline{}).Where("id = ?", req.Msg.Id).Update("status", int32(v1.PipelineStatus_PIPELINE_STATUS_IDLE)).Error; err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -163,6 +167,7 @@ func (s *PipelineService) StopPipeline(_ context.Context, req *connect.Request[v
 }
 
 func (s *PipelineService) PausePipeline(_ context.Context, req *connect.Request[v1.PausePipelineRequest]) (*connect.Response[v1.PausePipelineResponse], error) {
+	s.engine.StopPipeline(req.Msg.Id)
 	if err := s.db.Model(&models.Pipeline{}).Where("id = ?", req.Msg.Id).Update("status", int32(v1.PipelineStatus_PIPELINE_STATUS_PAUSED)).Error; err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
