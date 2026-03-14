@@ -12,3 +12,8 @@ plugins:
     opt:
       - paths=source_relative
 
+  # Generate TypeScript messages + service descriptors (protobuf-es v2)
+  - remote: buf.build/bufbuild/es
+    out: web/discordiance/src/gen
+    opt:
+      - target=ts

@@ -1,0 +1,30 @@
+@use 'primeflex/primeflex.scss';
+
+:root {
+  --app-sidebar-width: 260px;
+  --app-topbar-height: 60px;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--font-family);
+  background: var(--p-surface-ground);
+  color: var(--p-text-color);
+}
+
+// Scrollbar styling
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--p-surface-400);
+  border-radius: 3px;
+}
+
+// Utility
+.text-muted {
+  color: var(--p-text-muted-color);
+}

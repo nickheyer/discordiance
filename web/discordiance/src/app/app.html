@@ -1,0 +1,48 @@
+<div class="app-layout">
+  <aside class="app-sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-logo">
+        <i class="pi pi-bolt"></i>
+      </span>
+      <span class="sidebar-title">Discordiance</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <ul class="nav-list">
+        @for (item of navItems; track item.route) {
+          <li>
+            <a
+              [routerLink]="item.route"
+              routerLinkActive="nav-active"
+              class="nav-item"
+            >
+              <i [class]="item.icon"></i>
+              <span>{{ item.label }}</span>
+            </a>
+          </li>
+        }
+      </ul>
+
+      <div class="nav-section-label">Settings</div>
+
+      <ul class="nav-list">
+        @for (item of settingsItems; track item.route) {
+          <li>
+            <a
+              [routerLink]="item.route"
+              routerLinkActive="nav-active"
+              class="nav-item"
+            >
+              <i [class]="item.icon"></i>
+              <span>{{ item.label }}</span>
+            </a>
+          </li>
+        }
+      </ul>
+    </nav>
+  </aside>
+
+  <main class="app-content">
+    <router-outlet />
+  </main>
+</div>
