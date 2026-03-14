@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nickheyer/discordiance/internal/config"
+	"github.com/nickheyer/discordiance/internal/db"
 	"github.com/nickheyer/discordiance/internal/rpc"
 )
 
@@ -34,9 +35,16 @@ func main() {
 	}
 	slog.Info("configuration loaded", "port", cfg.Server.Port, "db_path", cfg.Database.Path)
 
+	// Open database
+	database, err := db.Open(cfg.Database.Path)
+	if err != nil {
+		slog.Error("opening database", "error", err)
+		os.Exit(1)
+	}
+
 	// Start RPC server
 	slog.Info("setting up RPC server")
-	rpcServer := rpc.NewServer()
+	rpcServer := rpc.NewServer(database)
 	srv := &http.Server{
 		Addr:         ":" + cfg.Server.Port,
 		Handler:      rpcServer.Handler(),
