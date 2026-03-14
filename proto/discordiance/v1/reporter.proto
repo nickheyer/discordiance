@@ -1,0 +1,166 @@
+syntax = "proto3";
+
+package discordiance.v1;
+
+import "discordiance/v1/common.proto";
+import "discordiance/v1/insight.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
+
+// ReporterType identifies the delivery mechanism for a reporter.
+enum ReporterType {
+  REPORTER_TYPE_UNSPECIFIED = 0;
+  REPORTER_TYPE_INTERNAL = 1;
+  REPORTER_TYPE_WEBHOOK = 2;
+  REPORTER_TYPE_EMAIL = 3;
+  REPORTER_TYPE_DISCORD = 4;
+  REPORTER_TYPE_GITHUB_ISSUE = 5;
+}
+
+// ReporterFilter determines which classified insights reach a reporter.
+message ReporterFilter {
+  repeated InsightState states = 1;
+  repeated string platform_ids = 2;
+}
+
+// WebhookReporterConfig holds webhook delivery settings.
+message WebhookReporterConfig {
+  string url = 1;
+  string secret = 2;
+}
+
+// EmailReporterConfig holds email delivery settings.
+message EmailReporterConfig {
+  string smtp_host = 1;
+  int32 smtp_port = 2;
+  string from_address = 3;
+  repeated string to_addresses = 4;
+  string username = 5;
+  string password = 6;
+}
+
+// DiscordReporterConfig holds Discord webhook delivery settings.
+message DiscordReporterConfig {
+  string webhook_url = 1;
+}
+
+// GitHubIssueReporterConfig holds GitHub issue creation settings.
+message GitHubIssueReporterConfig {
+  string token = 1;
+  string owner = 2;
+  string repo = 3;
+  repeated string labels = 4;
+}
+
+// Reporter delivers classified insights to an external destination.
+message Reporter {
+  string id = 1;
+  string name = 2;
+  ReporterType type = 3;
+  ReporterFilter filter = 4;
+  // config holds the reporter-specific delivery settings.
+  oneof config {
+    WebhookReporterConfig webhook = 5;
+    EmailReporterConfig email = 6;
+    DiscordReporterConfig discord = 7;
+    GitHubIssueReporterConfig github_issue = 8;
+  }
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// ReporterService manages reporter configurations.
+service ReporterService {
+  // CreateReporter registers a new reporter.
+  rpc CreateReporter(CreateReporterRequest) returns (CreateReporterResponse) {}
+  // GetReporter retrieves a reporter by ID.
+  rpc GetReporter(GetReporterRequest) returns (GetReporterResponse) {}
+  // ListReporters returns a paginated list of reporters.
+  rpc ListReporters(ListReportersRequest) returns (ListReportersResponse) {}
+  // UpdateReporter modifies an existing reporter configuration.
+  rpc UpdateReporter(UpdateReporterRequest) returns (UpdateReporterResponse) {}
+  // DeleteReporter removes a reporter.
+  rpc DeleteReporter(DeleteReporterRequest) returns (DeleteReporterResponse) {}
+  // TestReporter sends a test payload through the reporter.
+  rpc TestReporter(TestReporterRequest) returns (TestReporterResponse) {}
+}
+
+// CreateReporterRequest contains the fields needed to register a reporter.
+message CreateReporterRequest {
+  string name = 1;
+  ReporterType type = 2;
+  ReporterFilter filter = 3;
+  // config holds the reporter-specific delivery settings.
+  oneof config {
+    WebhookReporterConfig webhook = 4;
+    EmailReporterConfig email = 5;
+    DiscordReporterConfig discord = 6;
+    GitHubIssueReporterConfig github_issue = 7;
+  }
+}
+
+// CreateReporterResponse returns the created reporter.
+message CreateReporterResponse {
+  Reporter reporter = 1;
+}
+
+// GetReporterRequest identifies a reporter to retrieve.
+message GetReporterRequest {
+  string id = 1;
+}
+
+// GetReporterResponse returns the requested reporter.
+message GetReporterResponse {
+  Reporter reporter = 1;
+}
+
+// ListReportersRequest controls reporter listing pagination.
+message ListReportersRequest {
+  PaginationRequest pagination = 1;
+}
+
+// ListReportersResponse returns a page of reporters.
+message ListReportersResponse {
+  repeated Reporter reporters = 1;
+  PaginationResponse pagination = 2;
+}
+
+// UpdateReporterRequest contains updated reporter fields.
+message UpdateReporterRequest {
+  string id = 1;
+  string name = 2;
+  ReporterType type = 3;
+  ReporterFilter filter = 4;
+  // config holds the reporter-specific delivery settings.
+  oneof config {
+    WebhookReporterConfig webhook = 5;
+    EmailReporterConfig email = 6;
+    DiscordReporterConfig discord = 7;
+    GitHubIssueReporterConfig github_issue = 8;
+  }
+}
+
+// UpdateReporterResponse returns the updated reporter.
+message UpdateReporterResponse {
+  Reporter reporter = 1;
+}
+
+// DeleteReporterRequest identifies a reporter to delete.
+message DeleteReporterRequest {
+  string id = 1;
+}
+
+// DeleteReporterResponse is empty on success.
+message DeleteReporterResponse {}
+
+// TestReporterRequest identifies the reporter to test.
+message TestReporterRequest {
+  string id = 1;
+}
+
+// TestReporterResponse reports test delivery results.
+message TestReporterResponse {
+  bool success = 1;
+  string message = 2;
+}

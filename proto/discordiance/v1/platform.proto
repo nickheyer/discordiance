@@ -1,0 +1,165 @@
+syntax = "proto3";
+
+package discordiance.v1;
+
+import "discordiance/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
+
+// PlatformType identifies which external platform an adapter connects to.
+enum PlatformType {
+  PLATFORM_TYPE_UNSPECIFIED = 0;
+  PLATFORM_TYPE_DISCORD = 1;
+  PLATFORM_TYPE_REDDIT = 2;
+  PLATFORM_TYPE_TWITTER = 3;
+  PLATFORM_TYPE_LINKEDIN = 4;
+  PLATFORM_TYPE_GITHUB = 5;
+}
+
+// DiscordPlatformConfig holds Discord-specific connection settings.
+message DiscordPlatformConfig {
+  string bot_token = 1;
+  repeated string guild_ids = 2;
+  repeated string channel_ids = 3;
+}
+
+// RedditPlatformConfig holds Reddit-specific connection settings.
+message RedditPlatformConfig {
+  string client_id = 1;
+  string client_secret = 2;
+  repeated string subreddits = 3;
+}
+
+// TwitterPlatformConfig holds Twitter/X-specific connection settings.
+message TwitterPlatformConfig {
+  string bearer_token = 1;
+  repeated string keywords = 2;
+  repeated string accounts = 3;
+}
+
+// LinkedInPlatformConfig holds LinkedIn-specific connection settings.
+message LinkedInPlatformConfig {
+  string access_token = 1;
+  repeated string company_ids = 2;
+}
+
+// GitHubPlatformConfig holds GitHub-specific connection settings.
+message GitHubPlatformConfig {
+  string token = 1;
+  repeated string repositories = 2;
+  bool include_issues = 3;
+  bool include_discussions = 4;
+}
+
+// Platform is a data source from which insights are ingested.
+message Platform {
+  string id = 1;
+  string name = 2;
+  PlatformType type = 3;
+  // config holds the platform-specific connection settings.
+  oneof config {
+    DiscordPlatformConfig discord = 4;
+    RedditPlatformConfig reddit = 5;
+    TwitterPlatformConfig twitter = 6;
+    LinkedInPlatformConfig linkedin = 7;
+    GitHubPlatformConfig github = 8;
+  }
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// PlatformService manages platform configurations.
+service PlatformService {
+  // CreatePlatform registers a new platform data source.
+  rpc CreatePlatform(CreatePlatformRequest) returns (CreatePlatformResponse) {}
+  // GetPlatform retrieves a platform by ID.
+  rpc GetPlatform(GetPlatformRequest) returns (GetPlatformResponse) {}
+  // ListPlatforms returns a paginated list of platforms.
+  rpc ListPlatforms(ListPlatformsRequest) returns (ListPlatformsResponse) {}
+  // UpdatePlatform modifies an existing platform configuration.
+  rpc UpdatePlatform(UpdatePlatformRequest) returns (UpdatePlatformResponse) {}
+  // DeletePlatform removes a platform.
+  rpc DeletePlatform(DeletePlatformRequest) returns (DeletePlatformResponse) {}
+  // TestPlatformConnection validates credentials and connectivity.
+  rpc TestPlatformConnection(TestPlatformConnectionRequest) returns (TestPlatformConnectionResponse) {}
+}
+
+// CreatePlatformRequest contains the fields needed to register a platform.
+message CreatePlatformRequest {
+  string name = 1;
+  PlatformType type = 2;
+  // config holds the platform-specific connection settings.
+  oneof config {
+    DiscordPlatformConfig discord = 3;
+    RedditPlatformConfig reddit = 4;
+    TwitterPlatformConfig twitter = 5;
+    LinkedInPlatformConfig linkedin = 6;
+    GitHubPlatformConfig github = 7;
+  }
+}
+
+// CreatePlatformResponse returns the created platform.
+message CreatePlatformResponse {
+  Platform platform = 1;
+}
+
+// GetPlatformRequest identifies a platform to retrieve.
+message GetPlatformRequest {
+  string id = 1;
+}
+
+// GetPlatformResponse returns the requested platform.
+message GetPlatformResponse {
+  Platform platform = 1;
+}
+
+// ListPlatformsRequest controls platform listing pagination.
+message ListPlatformsRequest {
+  PaginationRequest pagination = 1;
+}
+
+// ListPlatformsResponse returns a page of platforms.
+message ListPlatformsResponse {
+  repeated Platform platforms = 1;
+  PaginationResponse pagination = 2;
+}
+
+// UpdatePlatformRequest contains updated platform fields.
+message UpdatePlatformRequest {
+  string id = 1;
+  string name = 2;
+  PlatformType type = 3;
+  // config holds the platform-specific connection settings.
+  oneof config {
+    DiscordPlatformConfig discord = 4;
+    RedditPlatformConfig reddit = 5;
+    TwitterPlatformConfig twitter = 6;
+    LinkedInPlatformConfig linkedin = 7;
+    GitHubPlatformConfig github = 8;
+  }
+}
+
+// UpdatePlatformResponse returns the updated platform.
+message UpdatePlatformResponse {
+  Platform platform = 1;
+}
+
+// DeletePlatformRequest identifies a platform to delete.
+message DeletePlatformRequest {
+  string id = 1;
+}
+
+// DeletePlatformResponse is empty on success.
+message DeletePlatformResponse {}
+
+// TestPlatformConnectionRequest identifies the platform to test.
+message TestPlatformConnectionRequest {
+  string id = 1;
+}
+
+// TestPlatformConnectionResponse reports connection test results.
+message TestPlatformConnectionResponse {
+  bool success = 1;
+  string message = 2;
+}

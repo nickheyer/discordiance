@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package discordiance.v1;
+
+import "discordiance/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
+
+// ProductContextType describes the kind of context attached to a product.
+enum ProductContextType {
+  PRODUCT_CONTEXT_TYPE_UNSPECIFIED = 0;
+  PRODUCT_CONTEXT_TYPE_DESCRIPTION = 1;
+  PRODUCT_CONTEXT_TYPE_URL = 2;
+  PRODUCT_CONTEXT_TYPE_REPOSITORY = 3;
+  PRODUCT_CONTEXT_TYPE_FILE = 4;
+  PRODUCT_CONTEXT_TYPE_DOCUMENTATION = 5;
+}
+
+// ProductContext is a typed piece of context attached to a product for agent consumption.
+message ProductContext {
+  string id = 1;
+  ProductContextType type = 2;
+  string value = 3;
+  string label = 4;
+}
+
+// Product is the subject of a pipeline.
+message Product {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  repeated ProductContext contexts = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// ProductService manages products and their context.
+service ProductService {
+  // CreateProduct creates a new product.
+  rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse) {}
+  // GetProduct retrieves a product by ID.
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse) {}
+  // ListProducts returns a paginated list of products.
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse) {}
+  // UpdateProduct modifies an existing product.
+  rpc UpdateProduct(UpdateProductRequest) returns (UpdateProductResponse) {}
+  // DeleteProduct removes a product.
+  rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse) {}
+  // AddProductContext attaches a new context entry to a product.
+  rpc AddProductContext(AddProductContextRequest) returns (AddProductContextResponse) {}
+  // RemoveProductContext detaches a context entry from a product.
+  rpc RemoveProductContext(RemoveProductContextRequest) returns (RemoveProductContextResponse) {}
+}
+
+// CreateProductRequest contains the fields needed to create a product.
+message CreateProductRequest {
+  string name = 1;
+  string description = 2;
+  repeated ProductContext contexts = 3;
+}
+
+// CreateProductResponse returns the created product.
+message CreateProductResponse {
+  Product product = 1;
+}
+
+// GetProductRequest identifies a product to retrieve.
+message GetProductRequest {
+  string id = 1;
+}
+
+// GetProductResponse returns the requested product.
+message GetProductResponse {
+  Product product = 1;
+}
+
+// ListProductsRequest controls product listing pagination.
+message ListProductsRequest {
+  PaginationRequest pagination = 1;
+}
+
+// ListProductsResponse returns a page of products.
+message ListProductsResponse {
+  repeated Product products = 1;
+  PaginationResponse pagination = 2;
+}
+
+// UpdateProductRequest contains updated product fields.
+message UpdateProductRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+// UpdateProductResponse returns the updated product.
+message UpdateProductResponse {
+  Product product = 1;
+}
+
+// DeleteProductRequest identifies a product to delete.
+message DeleteProductRequest {
+  string id = 1;
+}
+
+// DeleteProductResponse is empty on success.
+message DeleteProductResponse {}
+
+// AddProductContextRequest attaches context to a product.
+message AddProductContextRequest {
+  string product_id = 1;
+  ProductContextType type = 2;
+  string value = 3;
+  string label = 4;
+}
+
+// AddProductContextResponse returns the updated product.
+message AddProductContextResponse {
+  Product product = 1;
+}
+
+// RemoveProductContextRequest detaches context from a product.
+message RemoveProductContextRequest {
+  string product_id = 1;
+  string context_id = 2;
+}
+
+// RemoveProductContextResponse returns the updated product.
+message RemoveProductContextResponse {
+  Product product = 1;
+}

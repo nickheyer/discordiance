@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package discordiance.v1;
+
+import "discordiance/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
+
+// InsightState represents the classification lifecycle of an insight.
+enum InsightState {
+  INSIGHT_STATE_UNSPECIFIED = 0;
+  INSIGHT_STATE_RAW = 1;
+  INSIGHT_STATE_COLD = 2;
+  INSIGHT_STATE_HOT = 3;
+  INSIGHT_STATE_BURN = 4;
+}
+
+// InsightMedium describes the format in which the insight was captured.
+enum InsightMedium {
+  INSIGHT_MEDIUM_UNSPECIFIED = 0;
+  INSIGHT_MEDIUM_POST = 1;
+  INSIGHT_MEDIUM_COMMENT = 2;
+  INSIGHT_MEDIUM_MESSAGE = 3;
+  INSIGHT_MEDIUM_THREAD = 4;
+  INSIGHT_MEDIUM_REVIEW = 5;
+  INSIGHT_MEDIUM_ISSUE = 6;
+  INSIGHT_MEDIUM_DISCUSSION = 7;
+}
+
+// Insight is a single unit of social content ingested from a platform.
+message Insight {
+  string id = 1;
+  string pipeline_id = 2;
+  string platform_id = 3;
+  InsightState state = 4;
+  InsightMedium medium = 5;
+  string content = 6;
+  string author = 7;
+  string source_url = 8;
+  string source_id = 9;
+  string conversation_id = 10;
+  string classification_reason = 11;
+  string classifying_agent_id = 12;
+  google.protobuf.Timestamp source_timestamp = 13;
+  google.protobuf.Timestamp ingested_at = 14;
+  google.protobuf.Timestamp classified_at = 15;
+}
+
+// InsightStats holds aggregate insight counts.
+message InsightStats {
+  int32 total = 1;
+  int32 raw_count = 2;
+  int32 cold_count = 3;
+  int32 hot_count = 4;
+  int32 burn_count = 5;
+}
+
+// InsightService provides read and manual classification operations on insights.
+service InsightService {
+  // GetInsight retrieves a single insight by ID.
+  rpc GetInsight(GetInsightRequest) returns (GetInsightResponse) {}
+  // ListInsights returns a filtered, paginated list of insights.
+  rpc ListInsights(ListInsightsRequest) returns (ListInsightsResponse) {}
+  // ClassifyInsight allows a human operator to manually override classification.
+  rpc ClassifyInsight(ClassifyInsightRequest) returns (ClassifyInsightResponse) {}
+  // GetInsightStats returns aggregate counts by state, platform, and time range.
+  rpc GetInsightStats(GetInsightStatsRequest) returns (GetInsightStatsResponse) {}
+}
+
+// GetInsightRequest identifies an insight to retrieve.
+message GetInsightRequest {
+  string id = 1;
+}
+
+// GetInsightResponse returns the requested insight.
+message GetInsightResponse {
+  Insight insight = 1;
+}
+
+// ListInsightsRequest supports filtering and pagination for insight listing.
+message ListInsightsRequest {
+  PaginationRequest pagination = 1;
+  string pipeline_id = 2;
+  string platform_id = 3;
+  InsightState state = 4;
+  InsightMedium medium = 5;
+  google.protobuf.Timestamp from_timestamp = 6;
+  google.protobuf.Timestamp to_timestamp = 7;
+}
+
+// ListInsightsResponse returns a page of insights.
+message ListInsightsResponse {
+  repeated Insight insights = 1;
+  PaginationResponse pagination = 2;
+}
+
+// ClassifyInsightRequest sets the state of an insight manually.
+message ClassifyInsightRequest {
+  string id = 1;
+  InsightState state = 2;
+  string reason = 3;
+}
+
+// ClassifyInsightResponse returns the updated insight.
+message ClassifyInsightResponse {
+  Insight insight = 1;
+}
+
+// GetInsightStatsRequest scopes stats by pipeline, platform, or time range.
+message GetInsightStatsRequest {
+  string pipeline_id = 1;
+  string platform_id = 2;
+  google.protobuf.Timestamp from_timestamp = 3;
+  google.protobuf.Timestamp to_timestamp = 4;
+}
+
+// GetInsightStatsResponse returns aggregate insight statistics.
+message GetInsightStatsResponse {
+  InsightStats stats = 1;
+}

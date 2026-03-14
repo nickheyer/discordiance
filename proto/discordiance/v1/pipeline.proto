@@ -1,0 +1,173 @@
+syntax = "proto3";
+
+package discordiance.v1;
+
+import "discordiance/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
+
+// PipelineStatus represents the operational state of a pipeline.
+enum PipelineStatus {
+  PIPELINE_STATUS_UNSPECIFIED = 0;
+  PIPELINE_STATUS_IDLE = 1;
+  PIPELINE_STATUS_RUNNING = 2;
+  PIPELINE_STATUS_PAUSED = 3;
+  PIPELINE_STATUS_ERROR = 4;
+}
+
+// BatchMode determines how insights are grouped before agent classification.
+enum BatchMode {
+  BATCH_MODE_UNSPECIFIED = 0;
+  BATCH_MODE_SINGLE = 1;
+  BATCH_MODE_CONVERSATION = 2;
+  BATCH_MODE_AUTHOR = 3;
+  BATCH_MODE_TIME_WINDOW = 4;
+  BATCH_MODE_FIXED_SIZE = 5;
+}
+
+// ClassificationStrategy controls how insights are batched for classification.
+message ClassificationStrategy {
+  BatchMode batch_mode = 1;
+  int32 batch_size = 2;
+  int32 time_window_seconds = 3;
+}
+
+// Pipeline connects exactly one product to one or more agents, platforms, and reporters.
+message Pipeline {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string product_id = 4;
+  repeated string agent_ids = 5;
+  repeated string platform_ids = 6;
+  repeated string reporter_ids = 7;
+  PipelineStatus status = 8;
+  ClassificationStrategy classification_strategy = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+// PipelineService manages pipeline composition and lifecycle.
+service PipelineService {
+  // CreatePipeline creates a new pipeline.
+  rpc CreatePipeline(CreatePipelineRequest) returns (CreatePipelineResponse) {}
+  // GetPipeline retrieves a pipeline by ID.
+  rpc GetPipeline(GetPipelineRequest) returns (GetPipelineResponse) {}
+  // ListPipelines returns a paginated list of pipelines.
+  rpc ListPipelines(ListPipelinesRequest) returns (ListPipelinesResponse) {}
+  // UpdatePipeline modifies an existing pipeline's configuration.
+  rpc UpdatePipeline(UpdatePipelineRequest) returns (UpdatePipelineResponse) {}
+  // DeletePipeline removes a pipeline.
+  rpc DeletePipeline(DeletePipelineRequest) returns (DeletePipelineResponse) {}
+  // StartPipeline begins pipeline execution.
+  rpc StartPipeline(StartPipelineRequest) returns (StartPipelineResponse) {}
+  // StopPipeline halts pipeline execution.
+  rpc StopPipeline(StopPipelineRequest) returns (StopPipelineResponse) {}
+  // PausePipeline suspends pipeline execution.
+  rpc PausePipeline(PausePipelineRequest) returns (PausePipelineResponse) {}
+  // GetPipelineStatus returns the current runtime status of a pipeline.
+  rpc GetPipelineStatus(GetPipelineStatusRequest) returns (GetPipelineStatusResponse) {}
+}
+
+// CreatePipelineRequest contains the fields needed to create a pipeline.
+message CreatePipelineRequest {
+  string name = 1;
+  string description = 2;
+  string product_id = 3;
+  repeated string agent_ids = 4;
+  repeated string platform_ids = 5;
+  repeated string reporter_ids = 6;
+  ClassificationStrategy classification_strategy = 7;
+}
+
+// CreatePipelineResponse returns the created pipeline.
+message CreatePipelineResponse {
+  Pipeline pipeline = 1;
+}
+
+// GetPipelineRequest identifies a pipeline to retrieve.
+message GetPipelineRequest {
+  string id = 1;
+}
+
+// GetPipelineResponse returns the requested pipeline.
+message GetPipelineResponse {
+  Pipeline pipeline = 1;
+}
+
+// ListPipelinesRequest controls pipeline listing pagination.
+message ListPipelinesRequest {
+  PaginationRequest pagination = 1;
+}
+
+// ListPipelinesResponse returns a page of pipelines.
+message ListPipelinesResponse {
+  repeated Pipeline pipelines = 1;
+  PaginationResponse pagination = 2;
+}
+
+// UpdatePipelineRequest contains updated pipeline fields.
+message UpdatePipelineRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string product_id = 4;
+  repeated string agent_ids = 5;
+  repeated string platform_ids = 6;
+  repeated string reporter_ids = 7;
+  ClassificationStrategy classification_strategy = 8;
+}
+
+// UpdatePipelineResponse returns the updated pipeline.
+message UpdatePipelineResponse {
+  Pipeline pipeline = 1;
+}
+
+// DeletePipelineRequest identifies a pipeline to delete.
+message DeletePipelineRequest {
+  string id = 1;
+}
+
+// DeletePipelineResponse is empty on success.
+message DeletePipelineResponse {}
+
+// StartPipelineRequest identifies a pipeline to start.
+message StartPipelineRequest {
+  string id = 1;
+}
+
+// StartPipelineResponse returns the pipeline with updated status.
+message StartPipelineResponse {
+  Pipeline pipeline = 1;
+}
+
+// StopPipelineRequest identifies a pipeline to stop.
+message StopPipelineRequest {
+  string id = 1;
+}
+
+// StopPipelineResponse returns the pipeline with updated status.
+message StopPipelineResponse {
+  Pipeline pipeline = 1;
+}
+
+// PausePipelineRequest identifies a pipeline to pause.
+message PausePipelineRequest {
+  string id = 1;
+}
+
+// PausePipelineResponse returns the pipeline with updated status.
+message PausePipelineResponse {
+  Pipeline pipeline = 1;
+}
+
+// GetPipelineStatusRequest identifies a pipeline to check.
+message GetPipelineStatusRequest {
+  string id = 1;
+}
+
+// GetPipelineStatusResponse returns the current runtime status.
+message GetPipelineStatusResponse {
+  Pipeline pipeline = 1;
+}

@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package discordiance.v1;
+
+import "discordiance/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
+
+// Agent is an LLM endpoint using the OpenAI-compatible API.
+message Agent {
+  string id = 1;
+  string name = 2;
+  string base_url = 3;
+  string model = 4;
+  string api_key = 5;
+  int32 max_tokens = 6;
+  double temperature = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// AgentService manages LLM agent configurations.
+service AgentService {
+  // CreateAgent registers a new agent endpoint.
+  rpc CreateAgent(CreateAgentRequest) returns (CreateAgentResponse) {}
+  // GetAgent retrieves an agent by ID.
+  rpc GetAgent(GetAgentRequest) returns (GetAgentResponse) {}
+  // ListAgents returns a paginated list of agents.
+  rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse) {}
+  // UpdateAgent modifies an existing agent configuration.
+  rpc UpdateAgent(UpdateAgentRequest) returns (UpdateAgentResponse) {}
+  // DeleteAgent removes an agent.
+  rpc DeleteAgent(DeleteAgentRequest) returns (DeleteAgentResponse) {}
+  // TestAgentConnection validates the endpoint is reachable and the API key works.
+  rpc TestAgentConnection(TestAgentConnectionRequest) returns (TestAgentConnectionResponse) {}
+}
+
+// CreateAgentRequest contains the fields needed to register an agent.
+message CreateAgentRequest {
+  string name = 1;
+  string base_url = 2;
+  string model = 3;
+  string api_key = 4;
+  int32 max_tokens = 5;
+  double temperature = 6;
+}
+
+// CreateAgentResponse returns the created agent.
+message CreateAgentResponse {
+  Agent agent = 1;
+}
+
+// GetAgentRequest identifies an agent to retrieve.
+message GetAgentRequest {
+  string id = 1;
+}
+
+// GetAgentResponse returns the requested agent.
+message GetAgentResponse {
+  Agent agent = 1;
+}
+
+// ListAgentsRequest controls agent listing pagination.
+message ListAgentsRequest {
+  PaginationRequest pagination = 1;
+}
+
+// ListAgentsResponse returns a page of agents.
+message ListAgentsResponse {
+  repeated Agent agents = 1;
+  PaginationResponse pagination = 2;
+}
+
+// UpdateAgentRequest contains updated agent fields.
+message UpdateAgentRequest {
+  string id = 1;
+  string name = 2;
+  string base_url = 3;
+  string model = 4;
+  string api_key = 5;
+  int32 max_tokens = 6;
+  double temperature = 7;
+}
+
+// UpdateAgentResponse returns the updated agent.
+message UpdateAgentResponse {
+  Agent agent = 1;
+}
+
+// DeleteAgentRequest identifies an agent to delete.
+message DeleteAgentRequest {
+  string id = 1;
+}
+
+// DeleteAgentResponse is empty on success.
+message DeleteAgentResponse {}
+
+// TestAgentConnectionRequest identifies the agent to test.
+message TestAgentConnectionRequest {
+  string id = 1;
+}
+
+// TestAgentConnectionResponse reports connection test results.
+message TestAgentConnectionResponse {
+  bool success = 1;
+  string message = 2;
+}

@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package discordiance.v1;
+
+option go_package = "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1;discordiancev1";
+
+// PaginationRequest controls paginated list responses.
+message PaginationRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+// PaginationResponse carries pagination metadata in list responses.
+message PaginationResponse {
+  string next_page_token = 1;
+  int32 total_count = 2;
+}
