@@ -12,9 +12,3 @@ plugins:
     opt:
       - paths=source_relative
 
-  # Generate TypeScript
-  - remote: buf.build/bufbuild/es
-    out: web/discordiance/src/lib/proto
-    opt:
-      - target=ts
-      - import_extension=none

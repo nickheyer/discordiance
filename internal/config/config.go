@@ -23,8 +23,7 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	Path        string `mapstructure:"path" json:"path"`
-	AutoMigrate bool   `mapstructure:"auto_migrate" json:"auto_migrate"`
+	Path string `mapstructure:"path" json:"path"`
 }
 
 func Load(configPath string) (*Config, error) {
@@ -82,7 +81,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.idle_timeout", 60)
 
 	v.SetDefault("database.path", "./data/discordiance.db")
-	v.SetDefault("database.auto_migrate", true)
 }
 
 func validateConfig(cfg *Config) error {

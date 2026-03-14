@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/nickheyer/discordiance/internal/engine"
 	v1 "github.com/nickheyer/discordiance/pkg/proto/discordiance/v1"
 	"github.com/nickheyer/discordiance/pkg/proto/discordiance/v1/discordiancev1connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -16,11 +15,10 @@ import (
 var _ discordiancev1connect.HealthServiceHandler = (*HealthService)(nil)
 
 type HealthService struct {
-	engine *engine.Engine
 }
 
-func NewHealthService(eng *engine.Engine) *HealthService {
-	return &HealthService{engine: eng}
+func NewHealthService() *HealthService {
+	return &HealthService{}
 }
 
 func (s *HealthService) HealthCheck(ctx context.Context, req *connect.Request[v1.HealthCheckRequest]) (*connect.Response[v1.HealthCheckResponse], error) {
@@ -30,9 +28,6 @@ func (s *HealthService) HealthCheck(ctx context.Context, req *connect.Request[v1
 	}
 
 	status := "ok"
-	if !s.engine.Healthy() {
-		status = "degraded"
-	}
 
 	slog.Debug("rpc: HealthCheck", "status", status, "version", version)
 
