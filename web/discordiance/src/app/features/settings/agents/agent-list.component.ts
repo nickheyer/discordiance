@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
@@ -103,7 +103,7 @@ export class AgentListComponent implements OnInit {
   editing = false;
   form = this.emptyForm();
 
-  constructor(transport: TransportService) {
+  constructor(transport: TransportService, private cdr: ChangeDetectorRef) {
     this.client = transport.createClient(AgentService);
   }
 
@@ -112,6 +112,7 @@ export class AgentListComponent implements OnInit {
   async load() {
     const res = await this.client.listAgents({});
     this.agents = res.agents;
+    this.cdr.markForCheck();
   }
 
   openCreate() {

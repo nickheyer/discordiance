@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CardModule } from 'primeng/card';
 import { TagModule } from 'primeng/tag';
 import { TransportService } from '../../core/services/transport.service';
@@ -172,7 +172,7 @@ export class DashboardComponent implements OnInit {
   productCount = 0;
   runningPipelines = 0;
 
-  constructor(transport: TransportService) {
+  constructor(transport: TransportService, private cdr: ChangeDetectorRef) {
     this.pipelineClient = transport.createClient(PipelineService);
     this.insightClient = transport.createClient(InsightService);
     this.productClient = transport.createClient(ProductService);
@@ -189,6 +189,7 @@ export class DashboardComponent implements OnInit {
     this.stats = statsRes.stats;
     this.productCount = productRes.pagination?.totalCount ?? productRes.products.length;
     this.runningPipelines = this.pipelines.filter((p) => p.status === 2).length;
+    this.cdr.markForCheck();
   }
 
   pipelineStatusSeverity(status: number): 'success' | 'warn' | 'danger' | 'info' | 'secondary' {

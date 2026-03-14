@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
@@ -106,7 +106,7 @@ export class PlatformListComponent implements OnInit {
     { label: 'GitHub', value: 5 },
   ];
 
-  constructor(transport: TransportService) {
+  constructor(transport: TransportService, private cdr: ChangeDetectorRef) {
     this.client = transport.createClient(PlatformService);
   }
 
@@ -115,6 +115,7 @@ export class PlatformListComponent implements OnInit {
   async load() {
     const res = await this.client.listPlatforms({});
     this.platforms = res.platforms;
+    this.cdr.markForCheck();
   }
 
   openCreate() {
@@ -140,6 +141,7 @@ export class PlatformListComponent implements OnInit {
 
   async testConnection(id: string) {
     const res = await this.client.testPlatformConnection({ id });
+    this.cdr.markForCheck();
     alert(res.success ? 'Connection successful' : `Failed: ${res.message}`);
   }
 

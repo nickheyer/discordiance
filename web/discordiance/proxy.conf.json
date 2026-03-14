@@ -1,5 +1,5 @@
 {
-  "/discordiance.v1.*": {
+  "/discordiance.v1.": {
     "target": "http://localhost:8067",
     "secure": false
   }

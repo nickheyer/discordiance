@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
@@ -79,7 +79,7 @@ export class PipelineListComponent implements OnInit {
   private readonly client;
   pipelines: Pipeline[] = [];
 
-  constructor(transport: TransportService, public router: Router) {
+  constructor(transport: TransportService, public router: Router, private cdr: ChangeDetectorRef) {
     this.client = transport.createClient(PipelineService);
   }
 
@@ -90,6 +90,7 @@ export class PipelineListComponent implements OnInit {
   async load() {
     const res = await this.client.listPipelines({});
     this.pipelines = res.pipelines;
+    this.cdr.markForCheck();
   }
 
   async start(e: Event, id: string) { e.stopPropagation(); await this.client.startPipeline({ id }); await this.load(); }

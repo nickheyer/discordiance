@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CardModule } from 'primeng/card';
 import { ButtonModule } from 'primeng/button';
@@ -128,6 +128,7 @@ export class ProductDetailComponent implements OnInit {
     transport: TransportService,
     private route: ActivatedRoute,
     public router: Router,
+    private cdr: ChangeDetectorRef,
   ) {
     this.client = transport.createClient(ProductService);
   }
@@ -140,6 +141,7 @@ export class ProductDetailComponent implements OnInit {
   async load(id: string) {
     const res = await this.client.getProduct({ id });
     this.product = res.product;
+    this.cdr.markForCheck();
   }
 
   async save() {
@@ -163,6 +165,7 @@ export class ProductDetailComponent implements OnInit {
     this.showAddContext = false;
     this.newContextLabel = '';
     this.newContextValue = '';
+    this.cdr.markForCheck();
   }
 
   async removeContext(contextId: string) {
@@ -172,6 +175,7 @@ export class ProductDetailComponent implements OnInit {
       contextId,
     });
     this.product = res.product;
+    this.cdr.markForCheck();
   }
 
   contextTypeLabel(type: number): string {

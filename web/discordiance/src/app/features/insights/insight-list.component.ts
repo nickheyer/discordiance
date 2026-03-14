@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { TableModule } from 'primeng/table';
 import { CardModule } from 'primeng/card';
 import { TagModule } from 'primeng/tag';
@@ -80,7 +80,7 @@ export class InsightListComponent implements OnInit {
     { label: 'Burn', value: 4 },
   ];
 
-  constructor(transport: TransportService) {
+  constructor(transport: TransportService, private cdr: ChangeDetectorRef) {
     this.client = transport.createClient(InsightService);
   }
 
@@ -95,6 +95,7 @@ export class InsightListComponent implements OnInit {
     });
     this.insights = res.insights;
     this.totalCount = res.pagination?.totalCount ?? 0;
+    this.cdr.markForCheck();
   }
 
   async onPage(event: any) {

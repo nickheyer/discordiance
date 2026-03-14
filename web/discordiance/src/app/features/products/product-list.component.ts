@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
@@ -88,6 +88,7 @@ export class ProductListComponent implements OnInit {
   constructor(
     transport: TransportService,
     public router: Router,
+    private cdr: ChangeDetectorRef,
   ) {
     this.client = transport.createClient(ProductService);
   }
@@ -99,6 +100,7 @@ export class ProductListComponent implements OnInit {
   async load() {
     const res = await this.client.listProducts({});
     this.products = res.products;
+    this.cdr.markForCheck();
   }
 
   async createProduct() {

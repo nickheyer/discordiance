@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
@@ -118,6 +118,7 @@ export class PipelineDetailComponent implements OnInit {
     transport: TransportService,
     private route: ActivatedRoute,
     public router: Router,
+    private cdr: ChangeDetectorRef,
   ) {
     this.pipelineClient = transport.createClient(PipelineService);
     this.productClient = transport.createClient(ProductService);
@@ -155,6 +156,7 @@ export class PipelineDetailComponent implements OnInit {
         this.batchMode = this.pipeline.classificationStrategy?.batchMode ?? 1;
       }
     }
+    this.cdr.markForCheck();
   }
 
   async save() {

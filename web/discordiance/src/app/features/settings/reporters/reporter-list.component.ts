@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
@@ -110,7 +110,7 @@ export class ReporterListComponent implements OnInit {
     { label: 'GitHub Issue', value: 5 },
   ];
 
-  constructor(transport: TransportService) {
+  constructor(transport: TransportService, private cdr: ChangeDetectorRef) {
     this.client = transport.createClient(ReporterService);
   }
 
@@ -119,6 +119,7 @@ export class ReporterListComponent implements OnInit {
   async load() {
     const res = await this.client.listReporters({});
     this.reporters = res.reporters;
+    this.cdr.markForCheck();
   }
 
   openCreate() {
@@ -142,6 +143,7 @@ export class ReporterListComponent implements OnInit {
 
   async testReporter(id: string) {
     const res = await this.client.testReporter({ id });
+    this.cdr.markForCheck();
     alert(res.success ? 'Test successful' : `Failed: ${res.message}`);
   }
 
